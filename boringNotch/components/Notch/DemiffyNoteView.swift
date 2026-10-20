@@ -45,6 +45,11 @@ struct DemiffyNoteView: View {
         .onChange(of: focused) { _, _ in updateHold() }
         .onChange(of: client.noteDraft) { _, _ in updateHold() }
         .onDisappear { releaseHold() }
+        // The panel only takes the keyboard once KeyWindowEnabler made it key,
+        // which lands after onAppear; focus the editor then so typing just works.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            if note.object is BoringNotchSkyLightWindow { focused = true }
+        }
         // Clicking into another app takes the keyboard away; stop holding the notch open then.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { note in
             if note.object is BoringNotchSkyLightWindow { focused = false }

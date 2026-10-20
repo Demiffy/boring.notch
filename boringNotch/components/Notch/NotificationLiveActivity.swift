@@ -7,10 +7,17 @@ import SwiftUI
 
 private struct NotificationSourceIcon: View {
     let bundleID: String?
+    var iconAsset: String? = nil
     let size: CGFloat
 
     var body: some View {
-        if let bundleID {
+        if let iconAsset {
+            Image(iconAsset)
+                .resizable().scaledToFit()
+                .padding(size * 0.12)
+                .frame(width: size, height: size)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: size * 0.2))
+        } else if let bundleID {
             appIcon(for: bundleID)
                 .resizable().scaledToFit()
                 .frame(width: size, height: size)
@@ -36,7 +43,7 @@ struct NotificationLiveActivity: View {
 
     var body: some View {
         HStack {
-            NotificationSourceIcon(bundleID: notification.bundleID, size: itemSize)
+            NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, size: itemSize)
 
             Rectangle()
                 .fill(.black)
@@ -76,7 +83,7 @@ struct NotificationExpandedView: View {
         ZStack(alignment: .topTrailing) {
             Button(action: openSourceApp) {
                 HStack(alignment: .center, spacing: 12) {
-                    NotificationSourceIcon(bundleID: notification.bundleID, size: 46)
+                    NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, size: 46)
 
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {

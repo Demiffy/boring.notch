@@ -14,6 +14,10 @@ struct SystemNotification: Identifiable, Equatable {
     let subtitle: String?
     let body: String?
     let receivedAt: Date
+    /// Asset to show instead of the app icon (messages that didn't come from an app).
+    var iconAsset: String? = nil
+    /// Opened on click instead of an app.
+    var url: URL? = nil
 }
 
 @MainActor
@@ -108,6 +112,9 @@ final class SystemNotificationManager: ObservableObject {
 
     func open(_ notification: SystemNotification) async -> Bool {
         let workspace = NSWorkspace.shared
+        if let url = notification.url {
+            return workspace.open(url)
+        }
 
         for bundleID in candidateBundleIDs(for: notification) {
             let running = workspace.runningApplications.first { application in

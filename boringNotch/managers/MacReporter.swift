@@ -242,7 +242,9 @@ final class MacReporter {
                 title: "Message from demiffy.com",
                 subtitle: nil,
                 body: text,
-                receivedAt: Date()
+                receivedAt: Date(),
+                iconAsset: "DemiffyLogo",
+                url: client.siteURL(path: "mac")
             ))
             NSSound(named: "Glass")?.play()
         case "playPause":

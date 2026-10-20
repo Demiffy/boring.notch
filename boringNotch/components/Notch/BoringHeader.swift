@@ -14,10 +14,11 @@ struct BoringHeader: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @StateObject var shelfState = ShelfStateViewModel.shared
     @ObservedObject private var demiffy = DemiffyClient.shared
+    @ObservedObject private var claude = ClaudeCodeStatusManager.shared
     var body: some View {
         HStack(spacing: 0) {
             HStack {
-                if ((!shelfState.isEmpty || coordinator.alwaysShowTabs) && Defaults[.boringShelf]) || demiffy.isConfigured {
+                if ((!shelfState.isEmpty || coordinator.alwaysShowTabs) && Defaults[.boringShelf]) || demiffy.isConfigured || !claude.sessions.isEmpty {
                     TabSelectionView()
                 } else if vm.notchState == .open {
                     EmptyView()

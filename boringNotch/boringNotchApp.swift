@@ -80,6 +80,15 @@ struct DynamicNotchApp: App {
                 }
                 NSLog("Failed to migrate legacy Boring Notch app bundle at %@", sourceURL.path)
             }
+            // This fork's features would vanish if an official release replaced
+            // it, so automatic updates go off once. The toggle in About still
+            // turns them back on.
+            let defaults = UserDefaults.standard
+            if !defaults.bool(forKey: "fork.disabledAutomaticUpdates") {
+                updaterController.updater.automaticallyChecksForUpdates = false
+                updaterController.updater.automaticallyDownloadsUpdates = false
+                defaults.set(true, forKey: "fork.disabledAutomaticUpdates")
+            }
             updaterController.startUpdater()
         }
     }

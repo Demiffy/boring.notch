@@ -47,6 +47,14 @@ final class DemiffyClient: ObservableObject {
 
     var isConfigured: Bool { hasToken && serverURL != nil }
 
+    /// The website for the configured API: api.demiffy.com -> demiffy.com.
+    func siteURL(path: String) -> URL? {
+        guard var components = serverURL.flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) }) else { return nil }
+        if let host = components.host, host.hasPrefix("api.") { components.host = String(host.dropFirst(4)) }
+        components.path = "/" + path
+        return components.url
+    }
+
     private var serverURL: URL? {
         let raw = Defaults[.demiffyServer].trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: raw), url.scheme == "https" || url.host == "localhost" || url.host == "127.0.0.1" else { return nil }

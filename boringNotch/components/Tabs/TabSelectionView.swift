@@ -18,6 +18,7 @@ struct TabModel: Identifiable {
 struct TabSelectionView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject private var demiffy = DemiffyClient.shared
+    @ObservedObject private var claude = ClaudeCodeStatusManager.shared
     @Namespace var animation
 
     /// Shelf and Note each appear only when their feature is on.
@@ -25,6 +26,7 @@ struct TabSelectionView: View {
         var tabs = [TabModel(label: "Home", icon: "house.fill", view: .home)]
         if Defaults[.boringShelf] { tabs.append(TabModel(label: "Shelf", icon: "tray.fill", view: .shelf)) }
         if demiffy.isConfigured { tabs.append(TabModel(label: "Note", icon: "square.and.pencil", view: .note)) }
+        if !claude.sessions.isEmpty { tabs.append(TabModel(label: "Claude", icon: "sparkle", view: .claude)) }
         return tabs
     }
 
