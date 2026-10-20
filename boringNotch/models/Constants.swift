@@ -509,6 +509,7 @@ extension Defaults.Keys {
     // MARK: Notifications
     /// Off by default: mirroring banners needs Accessibility access.
     static let notificationLiveActivity = Key<Bool>("notificationLiveActivity", default: false)
+    static let claudeCodeLiveActivity = Key<Bool>("claudeCodeLiveActivity", default: true)
     static let notificationsFromAllApps = Key<Bool>("notificationsFromAllApps", default: false)
     static let notificationAllowedApps = Key<Set<String>>(
         "notificationAllowedApps",

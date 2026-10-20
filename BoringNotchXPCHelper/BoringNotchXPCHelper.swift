@@ -57,6 +57,17 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         reply(AXIsProcessTrusted())
     }
 
+    /// Moves the pointer to (x, y) and straight back in two posted events —
+    /// too fast to see. Lives here because the sandboxed app can't post
+    /// events. Coordinates are global, top-left origin.
+    @objc func nudgeCursor(throughX x: Double, y: Double) {
+        guard AXIsProcessTrusted(), let here = CGEvent(source: nil)?.location else { return }
+        for point in [CGPoint(x: x, y: y), here] {
+            CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+        }
+    }
+
     @objc func migrateLegacyAppBundle(
         from sourcePath: String,
         to destinationPath: String,

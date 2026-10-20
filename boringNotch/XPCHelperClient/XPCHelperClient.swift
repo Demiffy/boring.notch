@@ -344,6 +344,14 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    func nudgeCursor(through point: CGPoint) {
+        Task {
+            try? await ensureRemoteService().withService { service in
+                service.nudgeCursor(throughX: point.x, y: point.y)
+            }
+        }
+    }
+
     func stopLunarEventStream() async {
         do {
             let service = ensureRemoteService()

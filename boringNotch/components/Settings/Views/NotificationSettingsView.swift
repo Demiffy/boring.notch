@@ -37,6 +37,16 @@ struct NotificationSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                Defaults.Toggle(key: .claudeCodeLiveActivity) {
+                    Text("Show Claude Code status in the notch")
+                }
+            } footer: {
+                Text("Shows when Claude is working, needs you, or is done. Claude Code hooks send events to 127.0.0.1:\(String(ClaudeCodeStatusManager.port)).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if !isAccessibilityAuthorized {
                 Section {
                     HStack(alignment: .center, spacing: 12) {

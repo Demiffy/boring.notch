@@ -93,6 +93,7 @@ final class BoringViewCoordinator: ObservableObject {
     private var boringShelfCancellable: AnyCancellable?
     private var osdSourceCancellables: [AnyCancellable] = []
     private var notificationLiveActivityCancellable: AnyCancellable?
+    private var claudeCodeLiveActivityCancellable: AnyCancellable?
     private var uiEventCancellable: AnyCancellable?
 
     private init() {
@@ -202,6 +203,19 @@ final class BoringViewCoordinator: ObservableObject {
                         await SystemNotificationManager.shared.start()
                     } else {
                         SystemNotificationManager.shared.stop()
+                    }
+                }
+            }
+
+        // Fires immediately with the current value, so this also starts the
+        // listener on launch.
+        claudeCodeLiveActivityCancellable = Defaults.publisher(.claudeCodeLiveActivity)
+            .sink { change in
+                Task { @MainActor in
+                    if change.newValue {
+                        ClaudeCodeStatusManager.shared.start()
+                    } else {
+                        ClaudeCodeStatusManager.shared.stop()
                     }
                 }
             }

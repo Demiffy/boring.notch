@@ -22,6 +22,7 @@ struct ContentView: View {
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
     @ObservedObject var notificationManager = SystemNotificationManager.shared
+    @ObservedObject var claudeManager = ClaudeCodeStatusManager.shared
     /// Which entry of the closed-notch activity stack is on top.
     @State private var activityIndex: Int = 0
     @State private var hoverTask: Task<Void, Never>?
@@ -105,6 +106,10 @@ struct ContentView: View {
 
         if let notification = notificationManager.activeNotification {
             items.append(.notification(notification))
+        }
+
+        if claudeManager.overallState != nil {
+            items.append(.claude)
         }
 
         let musicIsShowing = (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
@@ -202,7 +207,7 @@ struct ContentView: View {
             // notification is still in the stack leaves the chin at the
             // notification's width.
             switch activity {
-            case .notification:
+            case .notification, .claude:
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
             case .music:
                 chinWidth += (2 * max(0, displayClosedNotchHeight - 12) + 20 + 2 * liveActivityEdgeMargin + 2)
@@ -338,6 +343,13 @@ struct ContentView: View {
                     // even if the user had swiped away to music.
                     .onChange(of: notificationManager.activeNotification?.id) { _, newID in
                         if newID != nil { activityIndex = 0 }
+                    }
+                    // Claude finishing or asking for input is worth surfacing
+                    // even if the user swiped to music.
+                    .onChange(of: claudeManager.overallState) { _, state in
+                        guard state == .done || state == .waiting,
+                              let index = liveActivities.firstIndex(of: .claude) else { return }
+                        activityIndex = index
                     }
                     // Activities disappear on their own (a notification
                     // expires, music stops). Keep the selection in range so
@@ -475,6 +487,8 @@ struct ContentView: View {
                               switch item {
                               case .notification(let notification):
                                   NotificationLiveActivity(notification: notification)
+                              case .claude:
+                                  ClaudeLiveActivity()
                               case .music:
                                   MusicLiveActivity()
                                       .frame(alignment: .center)
@@ -843,6 +857,22 @@ extension ContentView {
         }
     }
 
+    /// In a fullscreen space, macOS hides the revealed menu bar + title bar
+    /// only once it sees the pointer leave them. Leaving through the notch
+    /// panel hides that exit, so the bar stays stuck until the user hovers it
+    /// again. Pass the pointer through the bar and back to replay the exit.
+    private func releaseRevealedMenuBar() {
+        guard NSEvent.pressedMouseButtons == 0,
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }),
+              screen.visibleFrame.maxY == screen.frame.maxY, // menu bar auto-hides here
+              let primaryHeight = NSScreen.screens.first?.frame.height else { return }
+        // Left of the notch, inside the bar; CG coordinates are top-left origin.
+        XPCHelperClient.shared.nudgeCursor(through: CGPoint(
+            x: screen.frame.minX + 100,
+            y: primaryHeight - screen.frame.maxY + 20
+        ))
+    }
+
     private func handleHover(_ hovering: Bool) {
         if coordinator.firstLaunch { return }
         hoverTask?.cancel()
@@ -895,6 +925,8 @@ extension ContentView {
 
                     // Pointer left — let the notification age out again.
                     self.notificationManager.resumeDismiss()
+
+                    self.releaseRevealedMenuBar()
 
                     if self.vm.notchState == .open,
                        !self.vm.isPopoverActive,
