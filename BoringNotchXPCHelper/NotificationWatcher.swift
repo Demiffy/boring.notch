@@ -70,6 +70,9 @@ final class NotificationWatcher {
     private var settleWorkItem: DispatchWorkItem?
     private var observedWindows: [CFHashCode: AXUIElement] = [:]
     private var liveTokens = Set<String>()
+    /// The real (parked) banner behind each mirrored notification, so a click
+    /// in the notch can press it and the app opens the exact conversation.
+    private var bannerByToken: [String: AXUIElement] = [:]
     private var allowedBundleIDs = Set<String>()
     private var mirrorAllApps = false
     private var parkedWindowByToken: [String: Int] = [:]
@@ -278,12 +281,14 @@ final class NotificationWatcher {
                     }
 
                     liveTokens.insert(token)
+                    bannerByToken[token] = banner
                     onBanner?(notification)
                 }
             }
 
             let removed = liveTokens.subtracting(seen)
             liveTokens.formIntersection(seen)
+            removed.forEach { bannerByToken.removeValue(forKey: $0) }
             removed.forEach(restoreWindowIfUnused)
         }
     }
@@ -332,6 +337,14 @@ final class NotificationWatcher {
         }
 
         return banners.isEmpty ? .ignored : .banners(banners)
+    }
+
+    /// Presses the original banner, which is what clicking it in the corner
+    /// would do (Discord, Messages and others jump to that chat). False when
+    /// the banner has already gone away.
+    func open(token: String) -> Bool {
+        guard let banner = bannerByToken[token] else { return false }
+        return AXUIElementPerformAction(banner, kAXPressAction as CFString) == .success
     }
 
     private func token(for banner: AXUIElement) -> String {

@@ -62,6 +62,7 @@ final class BNLunarBrightnessEvent: NSObject, NSSecureCoding {
     func setNotificationFilter(_ bundleIDs: [String], allApps: Bool)
     func nudgeCursor(throughX x: Double, y: Double)
     func quitApplication(pid: Int32)
+    func openNotification(token: String, with reply: @escaping (Bool) -> Void)
 }
 
 @objc protocol BoringNotchXPCHelperDelegate {

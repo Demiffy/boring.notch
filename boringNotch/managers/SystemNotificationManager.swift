@@ -115,6 +115,10 @@ final class SystemNotificationManager: ObservableObject {
         if let url = notification.url {
             return workspace.open(url)
         }
+        // Press the real banner first so the app opens that exact chat.
+        if await XPCHelperClient.shared.openNotification(token: notification.id) {
+            return true
+        }
 
         for bundleID in candidateBundleIDs(for: notification) {
             let running = workspace.runningApplications.first { application in

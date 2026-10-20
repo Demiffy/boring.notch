@@ -344,6 +344,18 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    func openNotification(token: String) async -> Bool {
+        do {
+            let service = ensureRemoteService()
+            return try await service.withContinuation { service, continuation in
+                service.openNotification(token: token) { continuation.resume(returning: $0) }
+            }
+        } catch {
+            lastError = .transport(underlying: error)
+            return false
+        }
+    }
+
     func quitApplication(pid: Int32) {
         Task {
             try? await ensureRemoteService().withService { $0.quitApplication(pid: pid) }

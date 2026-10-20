@@ -175,6 +175,12 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         DispatchQueue.main.async { Self.watcher.stop() }
     }
 
+    @objc func openNotification(token: String, with reply: @escaping (Bool) -> Void) {
+        DispatchQueue.main.async {
+            reply(Self.watcher.open(token: token))
+        }
+    }
+
     /// Asks an app to quit normally (it can still save or ask first).
     @objc func quitApplication(pid: Int32) {
         DispatchQueue.main.async {
