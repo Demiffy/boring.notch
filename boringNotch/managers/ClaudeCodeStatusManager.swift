@@ -14,6 +14,8 @@ enum ClaudeSessionState: Equatable {
     case working
     case waiting
     case done
+    /// The turn ended on an API error (usage limit, auth, overload) instead of finishing.
+    case failed
 }
 
 struct ClaudeSession: Identifiable, Equatable {
@@ -32,6 +34,8 @@ final class ClaudeCodeStatusManager: ObservableObject {
 
     /// How long a finished session keeps its checkmark before dropping out.
     private let doneDuration: TimeInterval = 10
+    /// A failed turn stays a little longer so it isn't missed.
+    private let failedDuration: TimeInterval = 30
     /// A session that stops reporting (crash, killed terminal) is dropped
     /// after this long so the spinner can't get stuck.
     private let staleAfter: TimeInterval = 15 * 60
@@ -46,6 +50,7 @@ final class ClaudeCodeStatusManager: ObservableObject {
     var overallState: ClaudeSessionState? {
         let states = sessions.values.map(\.state)
         if states.contains(.waiting) { return .waiting }
+        if states.contains(.failed) { return .failed }
         if states.contains(.working) { return .working }
         return states.isEmpty ? nil : .done
     }
@@ -156,6 +161,8 @@ final class ClaudeCodeStatusManager: ObservableObject {
             return .working
         case "Stop":
             return .done
+        case "StopFailure":
+            return .failed
         case "Notification":
             // The idle reminder ("waiting for your input") fires a minute
             // after every finished turn; treating it as "needs you" would
@@ -172,7 +179,11 @@ final class ClaudeCodeStatusManager: ObservableObject {
         let now = Date()
         let expired = sessions.values.filter { session in
             let age = now.timeIntervalSince(session.updatedAt)
-            return session.state == .done ? age > doneDuration : age > staleAfter
+            switch session.state {
+            case .done: return age > doneDuration
+            case .failed: return age > failedDuration
+            case .working, .waiting: return age > staleAfter
+            }
         }
         for session in expired { sessions[session.id] = nil }
     }

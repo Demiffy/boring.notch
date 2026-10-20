@@ -35,7 +35,7 @@ struct ClaudeLiveActivity: View {
         }
         .frame(height: vm.effectiveClosedNotchHeight)
         .onChange(of: manager.overallState) { _, state in
-            if state == .done || state == .waiting { pulse() }
+            if state == .done || state == .waiting || state == .failed { pulse() }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -64,6 +64,8 @@ struct ClaudeLiveActivity: View {
             statusIcon("exclamationmark", color: Self.claudeOrange)
         case .done:
             statusIcon("checkmark", color: .green)
+        case .failed:
+            statusIcon("xmark", color: .red)
         case nil:
             EmptyView()
         }
@@ -95,6 +97,7 @@ struct ClaudeLiveActivity: View {
         case .working: "Claude is working"
         case .waiting: "Claude needs your input"
         case .done: "Claude is done"
+        case .failed: "Claude stopped with an error"
         case nil: "Claude"
         }
     }

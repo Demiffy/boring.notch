@@ -357,7 +357,7 @@ struct ContentView: View {
                         activityIndex = index
                     }
                     .onChange(of: claudeManager.overallState) { _, state in
-                        guard state == .done || state == .waiting,
+                        guard state == .done || state == .waiting || state == .failed,
                               let index = liveActivities.firstIndex(of: .claude) else { return }
                         activityIndex = index
                     }

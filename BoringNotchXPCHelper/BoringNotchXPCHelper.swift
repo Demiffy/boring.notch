@@ -175,13 +175,16 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         DispatchQueue.main.async { Self.watcher.stop() }
     }
 
-    /// Locks the screen the way Control-Command-Q does. login.framework is
-    /// private, so this is looked up at runtime and does nothing if it's gone.
+    /// Locks the screen by pressing Control-Command-Q, the system shortcut.
+    /// (The private SACLockScreenImmediate does nothing from an XPC service.)
     @objc func lockScreen() {
-        typealias LockFunction = @convention(c) () -> Int32
-        guard let handle = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_NOW),
-              let symbol = dlsym(handle, "SACLockScreenImmediate") else { return }
-        _ = unsafeBitCast(symbol, to: LockFunction.self)()
+        guard AXIsProcessTrusted() else { return }
+        let source = CGEventSource(stateID: .hidSystemState)
+        for keyDown in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: 0x0C, keyDown: keyDown) // Q
+            event?.flags = [.maskCommand, .maskControl]
+            event?.post(tap: .cghidEventTap)
+        }
     }
 
     @objc func setNotificationFilter(_ bundleIDs: [String], allApps: Bool) {

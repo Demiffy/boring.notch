@@ -20,6 +20,7 @@ final class ClaudeCodeStatusTests: XCTestCase {
         XCTAssertEqual(state("UserPromptSubmit", nil, nil), .working)
         XCTAssertEqual(state("PostToolUse", nil, nil), .working)
         XCTAssertEqual(state("Stop", nil, nil), .done)
+        XCTAssertEqual(state("StopFailure", nil, nil), .failed)
         XCTAssertEqual(state("Notification", "permission_prompt", "Claude needs your permission to use Bash"), .waiting)
         XCTAssertNil(state("Notification", "idle_prompt", nil))
         XCTAssertNil(state("Notification", nil, "Claude is waiting for your input"))
