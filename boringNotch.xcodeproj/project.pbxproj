@@ -10,6 +10,7 @@
 		07FE456E7AEA085D9FCA6D97 /* MeetingLinkDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B2A5E5F4D28F1DD9CD0B09 /* MeetingLinkDetector.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
 		1100292A2E8691B400035A57 /* FileShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029292E8691B400035A57 /* FileShareView.swift */; };
+		AA02570F12E7A0001 /* DemiffyDropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA02570F22E7A0001 /* DemiffyDropView.swift */; };
 		1100292E2E86940F00035A57 /* QuickShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100292D2E86940F00035A57 /* QuickShareService.swift */; };
 		1113ABC52E80E27000EC13B2 /* ShelfItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1113ABC32E80E27000EC13B2 /* ShelfItemView.swift */; };
 		1113ABC62E80E27000EC13B2 /* ShelfPersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1113ABBE2E80E27000EC13B2 /* ShelfPersistenceService.swift */; };
@@ -115,8 +116,11 @@
 		A1F000012F00000100000001 /* ShelfItemInteractionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F000022F00000100000001 /* ShelfItemInteractionView.swift */; };
 		A7F4A06476BC4B029B6BECEA /* NotchUIEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E354C7D712441284085CEA /* NotchUIEvent.swift */; };
 		AA01NLA12E7A0001 /* NotificationLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01NLA22E7A0001 /* NotificationLiveActivity.swift */; };
+		AA02F51412E7A0001 /* DemiffyLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA02F51422E7A0001 /* DemiffyLiveActivity.swift */; };
+		AA023B2C12E7A0001 /* DemiffyNoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA023B2C22E7A0001 /* DemiffyNoteView.swift */; };
 		AA01CLA12E7A0001 /* ClaudeLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CLA22E7A0001 /* ClaudeLiveActivity.swift */; };
 		AA01SNM12E7A0001 /* SystemNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01SNM22E7A0001 /* SystemNotificationManager.swift */; };
+		AA027B3612E7A0001 /* DemiffyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA027B3622E7A0001 /* DemiffyClient.swift */; };
 		AA01CCS12E7A0001 /* ClaudeCodeStatusManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CCS22E7A0001 /* ClaudeCodeStatusManager.swift */; };
 		AA02CAM12E7A0001 /* ContactAvatarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA02CAM22E7A0001 /* ContactAvatarManager.swift */; };
 		AA03OTP12E7A0001 /* OTPDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA03OTP22E7A0001 /* OTPDetector.swift */; };
@@ -189,6 +193,7 @@
 		033B8885979E4EA1A78E8ADC /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
 		110029292E8691B400035A57 /* FileShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShareView.swift; sourceTree = "<group>"; };
+		AA02570F22E7A0001 /* DemiffyDropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemiffyDropView.swift; sourceTree = "<group>"; };
 		1100292D2E86940F00035A57 /* QuickShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickShareService.swift; sourceTree = "<group>"; };
 		1113ABB72E80E27000EC13B2 /* ShelfItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfItem.swift; sourceTree = "<group>"; };
 		1113ABBA2E80E27000EC13B2 /* QuickLookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookService.swift; sourceTree = "<group>"; };
@@ -285,8 +290,11 @@
 		A1F000022F00000100000001 /* ShelfItemInteractionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfItemInteractionView.swift; sourceTree = "<group>"; };
 		A5167212301F85B40018095A /* boringNotchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = boringNotchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA01NLA22E7A0001 /* NotificationLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationLiveActivity.swift; sourceTree = "<group>"; };
+		AA02F51422E7A0001 /* DemiffyLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemiffyLiveActivity.swift; sourceTree = "<group>"; };
+		AA023B2C22E7A0001 /* DemiffyNoteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemiffyNoteView.swift; sourceTree = "<group>"; };
 		AA01CLA22E7A0001 /* ClaudeLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeLiveActivity.swift; sourceTree = "<group>"; };
 		AA01SNM22E7A0001 /* SystemNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemNotificationManager.swift; sourceTree = "<group>"; };
+		AA027B3622E7A0001 /* DemiffyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemiffyClient.swift; sourceTree = "<group>"; };
 		AA01CCS22E7A0001 /* ClaudeCodeStatusManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeStatusManager.swift; sourceTree = "<group>"; };
 		AA02CAM22E7A0001 /* ContactAvatarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactAvatarManager.swift; sourceTree = "<group>"; };
 		AA03OTP22E7A0001 /* OTPDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPDetector.swift; sourceTree = "<group>"; };
@@ -411,6 +419,7 @@
 			children = (
 				11F747CD2EC75CEA00F841DB /* DragPreviewView.swift */,
 				110029292E8691B400035A57 /* FileShareView.swift */,
+				AA02570F22E7A0001 /* DemiffyDropView.swift */,
 				1113ABC32E80E27000EC13B2 /* ShelfItemView.swift */,
 				A1F000022F00000100000001 /* ShelfItemInteractionView.swift */,
 				E49B58CAC648403F864E6D78 /* ShelfContextMenu.swift */,
@@ -583,6 +592,7 @@
 				112FB7342CCF16F70015238C /* NotchSpaceManager.swift */,
 				EAB1C3E8B149445A9E57C6AF /* NotchWindowManager.swift */,
 				AA01SNM22E7A0001 /* SystemNotificationManager.swift */,
+				AA027B3622E7A0001 /* DemiffyClient.swift */,
 				AA01CCS22E7A0001 /* ClaudeCodeStatusManager.swift */,
 				AA02CAM22E7A0001 /* ContactAvatarManager.swift */,
 				147163992C5D35FF0068B555 /* MusicManager.swift */,
@@ -770,6 +780,8 @@
 			isa = PBXGroup;
 			children = (
 				AA01NLA22E7A0001 /* NotificationLiveActivity.swift */,
+				AA02F51422E7A0001 /* DemiffyLiveActivity.swift */,
+				AA023B2C22E7A0001 /* DemiffyNoteView.swift */,
 				AA01CLA22E7A0001 /* ClaudeLiveActivity.swift */,
 				AA06CHV22E7A0001 /* CompactHomeView.swift */,
 				AA04LAS22E7A0001 /* LiveActivityStack.swift */,
@@ -980,6 +992,7 @@
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,
 				1100292A2E8691B400035A57 /* FileShareView.swift in Sources */,
+				AA02570F12E7A0001 /* DemiffyDropView.swift in Sources */,
 				147163982C5D35B70068B555 /* MusicVisualizer.swift in Sources */,
 				11CC44A22CEE614100C7244B /* BoringViewCoordinator.swift in Sources */,
 				B186543C2C6F49AE000B926A /* ShortcutConstants.swift in Sources */,
@@ -1023,8 +1036,11 @@
 				5917FD112E57891600E87F1C /* MediaKeyInterceptor.swift in Sources */,
 				149E0B9A2C737D40006418B1 /* WebcamView.swift in Sources */,
 				AA01SNM12E7A0001 /* SystemNotificationManager.swift in Sources */,
+				AA027B3612E7A0001 /* DemiffyClient.swift in Sources */,
 				AA01CCS12E7A0001 /* ClaudeCodeStatusManager.swift in Sources */,
 				AA01NLA12E7A0001 /* NotificationLiveActivity.swift in Sources */,
+				AA02F51412E7A0001 /* DemiffyLiveActivity.swift in Sources */,
+				AA023B2C12E7A0001 /* DemiffyNoteView.swift in Sources */,
 				AA01CLA12E7A0001 /* ClaudeLiveActivity.swift in Sources */,
 				AA06CHV12E7A0001 /* CompactHomeView.swift in Sources */,
 				AA04LAS12E7A0001 /* LiveActivityStack.swift in Sources */,

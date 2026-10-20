@@ -510,6 +510,9 @@ extension Defaults.Keys {
     /// Off by default: mirroring banners needs Accessibility access.
     static let notificationLiveActivity = Key<Bool>("notificationLiveActivity", default: false)
     static let claudeCodeLiveActivity = Key<Bool>("claudeCodeLiveActivity", default: true)
+    static let demiffyServer = Key<String>("demiffyServer", default: "https://api.demiffy.com")
+    /// 0 means the share link never expires.
+    static let demiffyLinkExpiryHours = Key<Int>("demiffyLinkExpiryHours", default: 24 * 7)
     static let notificationsFromAllApps = Key<Bool>("notificationsFromAllApps", default: false)
     static let notificationAllowedApps = Key<Set<String>>(
         "notificationAllowedApps",

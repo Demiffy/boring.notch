@@ -23,6 +23,7 @@ struct ContentView: View {
     @ObservedObject var volumeManager = VolumeManager.shared
     @ObservedObject var notificationManager = SystemNotificationManager.shared
     @ObservedObject var claudeManager = ClaudeCodeStatusManager.shared
+    @ObservedObject var demiffy = DemiffyClient.shared
     /// Which entry of the closed-notch activity stack is on top.
     @State private var activityIndex: Int = 0
     @State private var hoverTask: Task<Void, Never>?
@@ -106,6 +107,10 @@ struct ContentView: View {
 
         if let notification = notificationManager.activeNotification {
             items.append(.notification(notification))
+        }
+
+        if demiffy.uploadState != .idle {
+            items.append(.demiffy)
         }
 
         if claudeManager.overallState != nil {
@@ -207,7 +212,7 @@ struct ContentView: View {
             // notification is still in the stack leaves the chin at the
             // notification's width.
             switch activity {
-            case .notification, .claude:
+            case .notification, .claude, .demiffy:
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
             case .music:
                 chinWidth += (2 * max(0, displayClosedNotchHeight - 12) + 20 + 2 * liveActivityEdgeMargin + 2)
@@ -346,6 +351,11 @@ struct ContentView: View {
                     }
                     // Claude finishing or asking for input is worth surfacing
                     // even if the user swiped to music.
+                    // A drop starts an upload: show its progress in front.
+                    .onChange(of: demiffy.uploadState == .idle) { _, idle in
+                        guard !idle, let index = liveActivities.firstIndex(of: .demiffy) else { return }
+                        activityIndex = index
+                    }
                     .onChange(of: claudeManager.overallState) { _, state in
                         guard state == .done || state == .waiting,
                               let index = liveActivities.firstIndex(of: .claude) else { return }
@@ -489,6 +499,8 @@ struct ContentView: View {
                                   NotificationLiveActivity(notification: notification)
                               case .claude:
                                   ClaudeLiveActivity()
+                              case .demiffy:
+                                  DemiffyLiveActivity()
                               case .music:
                                   MusicLiveActivity()
                                       .frame(alignment: .center)
@@ -594,6 +606,8 @@ struct ContentView: View {
                                 dropInteraction: vm.dropInteraction,
                                 animation: vm.animation
                             )
+                        case .note:
+                            DemiffyNoteView()
                         }
                     }
                 }

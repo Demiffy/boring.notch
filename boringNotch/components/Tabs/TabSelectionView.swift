@@ -5,6 +5,7 @@
 //  Created by Hugo Persson on 2024-08-25.
 //
 
+import Defaults
 import SwiftUI
 
 struct TabModel: Identifiable {
@@ -14,14 +15,19 @@ struct TabModel: Identifiable {
     let view: NotchViews
 }
 
-let tabs = [
-    TabModel(label: "Home", icon: "house.fill", view: .home),
-    TabModel(label: "Shelf", icon: "tray.fill", view: .shelf)
-]
-
 struct TabSelectionView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @ObservedObject private var demiffy = DemiffyClient.shared
     @Namespace var animation
+
+    /// Shelf and Note each appear only when their feature is on.
+    private var tabs: [TabModel] {
+        var tabs = [TabModel(label: "Home", icon: "house.fill", view: .home)]
+        if Defaults[.boringShelf] { tabs.append(TabModel(label: "Shelf", icon: "tray.fill", view: .shelf)) }
+        if demiffy.isConfigured { tabs.append(TabModel(label: "Note", icon: "square.and.pencil", view: .note)) }
+        return tabs
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             ForEach(tabs) { tab in

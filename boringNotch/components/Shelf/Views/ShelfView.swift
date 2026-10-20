@@ -13,6 +13,7 @@ struct ShelfView: View {
     let dropInteraction: DropInteractionState
     let animation: Animation?
     @StateObject var shelfState = ShelfStateViewModel.shared
+    @ObservedObject private var demiffy = DemiffyClient.shared
 
     private let spacing: CGFloat = 8
 
@@ -27,6 +28,10 @@ struct ShelfView: View {
             HStack(spacing: 12) {
                 FileShareView(dropInteraction: dropInteraction)
                     .aspectRatio(1, contentMode: .fit)
+                if demiffy.isConfigured {
+                    DemiffyDropView()
+                        .aspectRatio(1, contentMode: .fit)
+                }
                 panel(quickLookService: quickLookService)
                     .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $interaction.dragDetectorTargeting) { providers in
                         handleDrop(providers: providers)
