@@ -304,11 +304,11 @@ final class SystemNotificationManager: ObservableObject {
         }
     }
 
-    /// macOS draws chat avatars with a thin ring and bakes the app's badge into
-    /// the bottom-right corner. This circle (as fractions of the square) sits
-    /// up-left of centre and just clears both, measured on Discord banners.
-    private static let avatarCropCenter = CGPoint(x: 0.40, y: 0.40)
-    private static let avatarCropRadius: CGFloat = 0.30
+    /// The avatar circle inside the captured square, as fractions of it
+    /// (measured on Discord banners: it fills the middle ~85%). macOS bakes
+    /// the app's badge onto its bottom-right, so any centred crop keeps it.
+    private static let avatarCropCenter = CGPoint(x: 0.50, y: 0.50)
+    private static let avatarCropRadius: CGFloat = 0.42
 
     nonisolated private static func cropAvatar(_ image: CGImage) -> CGImage? {
         let w = CGFloat(image.width), h = CGFloat(image.height)
