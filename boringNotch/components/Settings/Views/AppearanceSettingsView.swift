@@ -11,6 +11,8 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @Default(.useCustomAccentColor) var useCustomAccentColor
+    @Default(.showNotHumanFace) var showNotHumanFace
+    @Default(.idleFaceIsCat) var idleFaceIsCat
     @Default(.customAccentColorData) var customAccentColorData
     @State private var customAccentColor: Color = .accentColor
     @State private var selectedPresetColor: PresetAccentColor?
@@ -155,6 +157,11 @@ struct AppearanceSettingsView: View {
             Defaults.Toggle(key: .showNotHumanFace) {
                 Text("Show cool face animation while inactive")
             }
+            Picker("Idle face", selection: $idleFaceIsCat) {
+                Text("DM cat").tag(true)
+                Text("Smiley").tag(false)
+            }
+            .disabled(!showNotHumanFace)
         } header: {
             Text("Idle state")
         }

@@ -514,6 +514,8 @@ extension Defaults.Keys {
     /// 0 means the share link never expires.
     static let demiffyLinkExpiryHours = Key<Int>("demiffyLinkExpiryHours", default: 24 * 7)
     static let demiffyReportMac = Key<Bool>("demiffyReportMac", default: true)
+    /// Idle face: the DM cat (animated) instead of the built-in smiley.
+    static let idleFaceIsCat = Key<Bool>("idleFaceIsCat", default: true)
     static let demiffyShareNowPlaying = Key<Bool>("demiffyShareNowPlaying", default: true)
     static let demiffyShareActivity = Key<Bool>("demiffyShareActivity", default: true)
     static let notificationsFromAllApps = Key<Bool>("notificationsFromAllApps", default: false)

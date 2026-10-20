@@ -4,6 +4,7 @@
 // Created by Harsh Vardhan  Goswami  on  04/08/24.
 //
 
+import AppKit
 import SwiftUI
 
 struct AnimatedFace: View {
@@ -87,6 +88,24 @@ struct Mouth: View {
         }
         .frame(width: size.width, height: size.height)
     }
+}
+
+/// The DM cat from demiffy.com, inverted for the black notch, wagging its tail.
+/// NSImageView plays GIF frames natively, so there's no timer to manage here.
+struct DemiffyCatIdle: NSViewRepresentable {
+    var size: CGFloat = 24
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.image = NSDataAsset(name: "DemiffyCatIdle").flatMap { NSImage(data: $0.data) }
+        view.animates = true
+        view.imageScaling = .scaleProportionallyUpOrDown
+        view.setContentHuggingPriority(.required, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSImageView, context: Context) {}
 }
 
 struct MinimalFaceFeatures_Previews: PreviewProvider {

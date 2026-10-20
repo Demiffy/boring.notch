@@ -686,7 +686,12 @@ struct ContentView: View {
                 .fill(.black)
                 .frame(width: vm.closedNotchSize.width + 20)
             let faceScale = min(1.0, displayClosedNotchHeight / 30.0)
-            AnimatedFace(height: 24.0 * faceScale, width: 30.0 * faceScale)
+            if Defaults[.idleFaceIsCat] {
+                DemiffyCatIdle()
+                    .frame(width: 26.0 * faceScale, height: 26.0 * faceScale)
+            } else {
+                AnimatedFace(height: 24.0 * faceScale, width: 30.0 * faceScale)
+            }
         }.frame(
             height: displayClosedNotchHeight,
             alignment: .center
