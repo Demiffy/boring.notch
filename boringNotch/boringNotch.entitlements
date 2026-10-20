@@ -33,6 +33,7 @@
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+		<string>com.apple.logind</string>
 	</array>
 </dict>
 </plist>

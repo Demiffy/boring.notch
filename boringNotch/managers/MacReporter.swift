@@ -199,6 +199,20 @@ final class MacReporter {
 
     // MARK: - Commands
 
+    /// Shows the lock screen; the session stays logged in. Called from the app
+    /// itself because the login session agent isn't reachable from the XPC
+    /// helper (it fails there with "Unable to get the SessionAgent endpoint").
+    private func lockScreen() {
+        typealias LockFunction = @convention(c) () -> Int32
+        guard let handle = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_NOW),
+              let symbol = dlsym(handle, "SACLockScreenImmediate") else {
+            Log.app.error("lock: SACLockScreenImmediate unavailable")
+            return
+        }
+        let result = unsafeBitCast(symbol, to: LockFunction.self)()
+        Log.app.info("lock: SACLockScreenImmediate -> \(result, privacy: .public)")
+    }
+
     private func pollLoop() async {
         while !Task.isCancelled {
             guard client.isConfigured, Defaults[.demiffyReportMac] else {
@@ -217,6 +231,7 @@ final class MacReporter {
     }
 
     private func run(_ command: [String: Any]) {
+        Log.app.info("demiffy command: \(command["type"] as? String ?? "?", privacy: .public)")
         switch command["type"] as? String {
         case "message":
             guard let text = command["text"] as? String else { return }
@@ -240,7 +255,7 @@ final class MacReporter {
                 }
             }
         case "lock":
-            XPCHelperClient.shared.lockScreen()
+            lockScreen()
         default:
             break
         }
