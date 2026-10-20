@@ -292,14 +292,28 @@ final class SystemNotificationManager: ObservableObject {
             // Let the banner finish sliding in, then measure where it ended up.
             try? await Task.sleep(for: .milliseconds(600))
             let settled = await XPCHelperClient.shared.notificationIconRect(token: id) ?? rect
-            guard let image = await Self.screenshot(of: settled) else { return }
-            let avatar = NSImage(cgImage: image, size: settled.size)
+            guard let image = await Self.screenshot(of: settled),
+                  let face = Self.cropAvatar(image) else { return }
+            let side = settled.width * Self.avatarCropRadius * 2
+            let avatar = NSImage(cgImage: face, size: CGSize(width: side, height: side))
             guard let self else { return }
             if self.activeNotification?.id == id { self.activeNotification?.avatar = avatar }
             if let index = self.queuedNotifications.firstIndex(where: { $0.id == id }) {
                 self.queuedNotifications[index].avatar = avatar
             }
         }
+    }
+
+    /// macOS draws chat avatars with a thin ring and bakes the app's badge into
+    /// the bottom-right corner. This circle (as fractions of the square) sits
+    /// up-left of centre and just clears both, measured on Discord banners.
+    private static let avatarCropCenter = CGPoint(x: 0.40, y: 0.40)
+    private static let avatarCropRadius: CGFloat = 0.30
+
+    nonisolated private static func cropAvatar(_ image: CGImage) -> CGImage? {
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        let r = avatarCropRadius * w
+        return image.cropping(to: CGRect(x: avatarCropCenter.x * w - r, y: avatarCropCenter.y * h - r, width: r * 2, height: r * 2).integral)
     }
 
     /// ScreenCaptureKit calls back on a background queue. Called from main-actor

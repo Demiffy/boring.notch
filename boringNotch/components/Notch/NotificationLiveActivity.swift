@@ -14,9 +14,12 @@ private struct NotificationSourceIcon: View {
     var body: some View {
         if let avatar {
             Image(nsImage: avatar)
-                .resizable().scaledToFill()
+                .resizable()
+                .interpolation(.high)
+                .scaledToFill()
                 .frame(width: size, height: size)
                 .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 0.75))
         } else if let iconAsset {
             Image(iconAsset)
                 .resizable().scaledToFit()
@@ -47,9 +50,15 @@ struct NotificationLiveActivity: View {
         max(0, vm.effectiveClosedNotchHeight - 12)
     }
 
+    /// A face reads better a little larger than an app icon.
+    private var leadingSize: CGFloat {
+        notification.avatar == nil ? itemSize : max(0, vm.effectiveClosedNotchHeight - 6)
+    }
+
     var body: some View {
         HStack {
-            NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, avatar: notification.avatar, size: itemSize)
+            NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, avatar: notification.avatar, size: leadingSize)
+                .frame(width: itemSize)
 
             Rectangle()
                 .fill(.black)
@@ -88,43 +97,47 @@ struct NotificationExpandedView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Button(action: openSourceApp) {
-                HStack(alignment: .center, spacing: 12) {
-                    NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, avatar: notification.avatar, size: 46)
+                HStack(alignment: .center, spacing: 14) {
+                    NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, avatar: notification.avatar, size: 54)
 
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(notification.appName ?? "Notification")
-                                .font(.system(size: 14, weight: .semibold))
-                                .lineLimit(1)
-
-                            Text(notification.receivedAt, style: .relative)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                                .fixedSize()
-                        }
-
-                        if let title = notification.title, title != notification.appName {
-                            Text(title)
-                                .font(.system(size: 12, weight: .medium))
-                                .lineLimit(1)
-                        }
+                    // Who, what, then where from: the sender leads, the app is a footnote.
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(headline)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
 
                         if let subtitle = notification.subtitle {
                             Text(subtitle)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.75))
                                 .lineLimit(1)
                         }
 
                         if let body = notification.body {
                             Text(body)
                                 .font(.system(size: 13))
-                                .foregroundStyle(.secondary.opacity(0.9))
-                                .lineLimit(2)
+                                .foregroundStyle(.white.opacity(0.72))
+                                .lineLimit(3)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+
+                        HStack(spacing: 5) {
+                            if notification.avatar != nil, let bundleID = notification.bundleID {
+                                appIcon(for: bundleID)
+                                    .resizable().scaledToFit()
+                                    .frame(width: 12, height: 12)
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                            }
+                            Text(notification.appName ?? "Notification")
+                            Text("·")
+                            Text(notification.receivedAt, style: .relative)
+                        }
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.top, 2)
                     }
-                    .frame(maxWidth: 300, alignment: .leading)
+                    .frame(maxWidth: 320, alignment: .leading)
                 }
                 .padding(.horizontal, 4)
                 .contentShape(Rectangle())
@@ -165,6 +178,11 @@ struct NotificationExpandedView: View {
         }
         .onAppear { manager.holdActive() }
         .onDisappear { manager.resumeDismiss() }
+    }
+
+    /// The sender for chat apps (the banner's title), else the app's name.
+    private var headline: String {
+        notification.title ?? notification.appName ?? "Notification"
     }
 
     private func openSourceApp() {
