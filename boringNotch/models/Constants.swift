@@ -513,6 +513,9 @@ extension Defaults.Keys {
     static let demiffyServer = Key<String>("demiffyServer", default: "https://api.demiffy.com")
     /// 0 means the share link never expires.
     static let demiffyLinkExpiryHours = Key<Int>("demiffyLinkExpiryHours", default: 24 * 7)
+    static let demiffyReportMac = Key<Bool>("demiffyReportMac", default: true)
+    static let demiffyShareNowPlaying = Key<Bool>("demiffyShareNowPlaying", default: true)
+    static let demiffyShareActivity = Key<Bool>("demiffyShareActivity", default: true)
     static let notificationsFromAllApps = Key<Bool>("notificationsFromAllApps", default: false)
     static let notificationAllowedApps = Key<Set<String>>(
         "notificationAllowedApps",

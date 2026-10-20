@@ -87,6 +87,16 @@ final class SystemNotificationManager: ObservableObject {
         }
     }
 
+    /// Shows a notification that didn't come from a banner (a message sent from
+    /// demiffy.com), skipping the per-app filter.
+    func present(_ notification: SystemNotification) {
+        if activeNotification != nil && isUserPresent {
+            queuedNotifications.append(notification)
+        } else {
+            show(notification)
+        }
+    }
+
     func showNextQueued() {
         guard isUserPresent, let next = queuedNotifications.first else { return }
         if let activeNotification {

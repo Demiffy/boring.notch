@@ -436,6 +436,13 @@ extension XPCHelperClient {
         }
     }
 
+    nonisolated func lockScreen() {
+        Task {
+            let service = await MainActor.run { ensureRemoteService() }
+            try? await service.withService { $0.lockScreen() }
+        }
+    }
+
     nonisolated func setNotificationFilter(bundleIDs: Set<String>, allApps: Bool) {
         Task {
             let service = await MainActor.run { ensureRemoteService() }

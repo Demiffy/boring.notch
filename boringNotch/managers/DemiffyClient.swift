@@ -94,7 +94,7 @@ final class DemiffyClient: ObservableObject {
 
     // MARK: - Requests
 
-    private func request(_ path: String, method: String = "GET") throws -> URLRequest {
+    func request(_ path: String, method: String = "GET") throws -> URLRequest {
         guard let base = serverURL, let token = Self.readToken() else { throw DemiffyError("Connect Demiffy in Settings first") }
         var request = URLRequest(url: base.appendingPathComponent(path))
         request.httpMethod = method
@@ -109,6 +109,26 @@ final class DemiffyClient: ObservableObject {
         try Self.check(data, response)
         struct Me: Decodable { let displayName: String }
         return try JSONDecoder().decode(Me.self, from: data).displayName
+    }
+
+    // MARK: - Mac reporting
+
+    func postJSON(_ path: String, body: [String: Any]) async throws {
+        var request = try request(path, method: "POST")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Self.check(data, response)
+    }
+
+    /// Long-poll: the server answers as soon as a command is queued, or with none after ~25 s.
+    func pollCommands() async throws -> [[String: Any]] {
+        var request = try request("notch/commands")
+        request.timeoutInterval = 45
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Self.check(data, response)
+        let body = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return body?["commands"] as? [[String: Any]] ?? []
     }
 
     // MARK: - Notes

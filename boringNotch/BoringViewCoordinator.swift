@@ -94,6 +94,7 @@ final class BoringViewCoordinator: ObservableObject {
     private var osdSourceCancellables: [AnyCancellable] = []
     private var notificationLiveActivityCancellable: AnyCancellable?
     private var claudeCodeLiveActivityCancellable: AnyCancellable?
+    private var macReportCancellable: AnyCancellable?
     private var uiEventCancellable: AnyCancellable?
 
     private init() {
@@ -216,6 +217,18 @@ final class BoringViewCoordinator: ObservableObject {
                         ClaudeCodeStatusManager.shared.start()
                     } else {
                         ClaudeCodeStatusManager.shared.stop()
+                    }
+                }
+            }
+
+        // Reporting to demiffy.com; the reporter itself waits until a token is saved.
+        macReportCancellable = Defaults.publisher(.demiffyReportMac)
+            .sink { change in
+                Task { @MainActor in
+                    if change.newValue {
+                        MacReporter.shared.start()
+                    } else {
+                        MacReporter.shared.stop()
                     }
                 }
             }

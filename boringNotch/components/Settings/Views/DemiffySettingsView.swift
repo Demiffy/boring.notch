@@ -10,6 +10,7 @@ struct DemiffySettingsView: View {
     @ObservedObject private var client = DemiffyClient.shared
     @Default(.demiffyServer) private var server
     @Default(.demiffyLinkExpiryHours) private var expiryHours
+    @Default(.demiffyReportMac) private var reportMac
 
     @State private var tokenInput = ""
     @State private var connection: Connection = .unknown
@@ -73,6 +74,28 @@ struct DemiffySettingsView: View {
                 HStack(spacing: 4) {
                     Text("Create a token on")
                     Link("demiffy.com → Settings → Boring Notch", destination: URL(string: "https://demiffy.com/settings#notch")!)
+                }
+                .font(.caption)
+            }
+
+            Section {
+                Defaults.Toggle(key: .demiffyReportMac) {
+                    Text("Report this Mac to demiffy.com")
+                }
+                Defaults.Toggle(key: .demiffyShareNowPlaying) {
+                    Text("Include what's playing")
+                }
+                .disabled(!reportMac)
+                Defaults.Toggle(key: .demiffyShareActivity) {
+                    Text("Include the app in front and lock state")
+                }
+                .disabled(!reportMac)
+            } header: {
+                Text("This Mac")
+            } footer: {
+                HStack(spacing: 4) {
+                    Text("Battery, CPU, memory and disk every minute, and remote actions (message, play/pause, sound, lock) from")
+                    Link("demiffy.com/mac", destination: URL(string: "https://demiffy.com/mac")!)
                 }
                 .font(.caption)
             }
