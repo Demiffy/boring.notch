@@ -351,14 +351,6 @@ struct ContentView: View {
                     }
                     // Claude finishing or asking for input is worth surfacing
                     // even if the user swiped to music.
-                    // Opening the notch while Claude is the activity in front
-                    // goes straight to its sessions.
-                    .onChange(of: vm.notchState) { _, state in
-                        if state == .open, selectedActivity == .claude { coordinator.currentView = .claude }
-                    }
-                    .onChange(of: claudeManager.sessions.isEmpty) { _, empty in
-                        if empty, coordinator.currentView == .claude { coordinator.currentView = .home }
-                    }
                     // A drop starts an upload: show its progress in front.
                     .onChange(of: demiffy.uploadState == .idle) { _, idle in
                         guard !idle, let index = liveActivities.firstIndex(of: .demiffy) else { return }
@@ -616,8 +608,8 @@ struct ContentView: View {
                             )
                         case .note:
                             DemiffyNoteView()
-                        case .claude:
-                            ClaudeSessionsView()
+                        case .apps:
+                            BackgroundAppsView()
                         }
                     }
                 }

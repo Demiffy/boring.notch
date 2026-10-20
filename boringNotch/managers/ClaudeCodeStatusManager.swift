@@ -23,8 +23,6 @@ struct ClaudeSession: Identifiable, Equatable {
     var project: String
     var state: ClaudeSessionState
     var updatedAt: Date
-    /// When the current turn began (the prompt was sent).
-    var startedAt: Date
 }
 
 @MainActor
@@ -153,17 +151,7 @@ final class ClaudeCodeStatusManager: ObservableObject {
             if event == "SessionEnd" { sessions[sessionID] = nil }
             return
         }
-        let now = Date()
-        let previous = sessions[sessionID]
-        // A new turn starts when work begins after the last one ended.
-        let continuing = previous.map { $0.state == .working || $0.state == .waiting } ?? false
-        sessions[sessionID] = ClaudeSession(
-            id: sessionID,
-            project: project,
-            state: state,
-            updatedAt: now,
-            startedAt: continuing ? previous!.startedAt : now
-        )
+        sessions[sessionID] = ClaudeSession(id: sessionID, project: project, state: state, updatedAt: Date())
     }
 
     /// Maps a hook event to a session state; nil means "don't change state".

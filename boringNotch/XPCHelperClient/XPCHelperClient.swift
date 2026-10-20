@@ -344,6 +344,12 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    func quitApplication(pid: Int32) {
+        Task {
+            try? await ensureRemoteService().withService { $0.quitApplication(pid: pid) }
+        }
+    }
+
     func nudgeCursor(through point: CGPoint) {
         Task {
             try? await ensureRemoteService().withService { service in
