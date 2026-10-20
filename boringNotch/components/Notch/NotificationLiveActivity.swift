@@ -97,8 +97,8 @@ struct NotificationExpandedView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Button(action: openSourceApp) {
-                HStack(alignment: .center, spacing: 14) {
-                    NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, avatar: notification.avatar, size: 54)
+                HStack(alignment: .center, spacing: 12) {
+                    NotificationSourceIcon(bundleID: notification.bundleID, iconAsset: notification.iconAsset, avatar: notification.avatar, size: 42)
 
                     // Who, what, then where from: the sender leads, the app is a footnote.
                     VStack(alignment: .leading, spacing: 3) {
