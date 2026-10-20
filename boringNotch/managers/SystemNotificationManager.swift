@@ -5,6 +5,7 @@
 import AppKit
 import Combine
 import Defaults
+import ScreenCaptureKit
 
 struct SystemNotification: Identifiable, Equatable {
     let id: String
@@ -18,6 +19,8 @@ struct SystemNotification: Identifiable, Equatable {
     var iconAsset: String? = nil
     /// Opened on click instead of an app.
     var url: URL? = nil
+    /// The picture from the banner itself (a chat app's sender avatar).
+    var avatar: NSImage? = nil
 }
 
 @MainActor
@@ -173,6 +176,9 @@ final class SystemNotificationManager: ObservableObject {
             receivedAt: Date()
         )
         guard isAllowed(notification) else { return }
+        if Defaults[.notificationShowAvatars], let rect = nonEmpty(payload["iconRect"]).map(NSRectFromString), !rect.isEmpty {
+            captureAvatar(in: rect, for: notification.id)
+        }
         guard activeNotification == nil else {
             guard isUserPresent else {
                 show(notification)
@@ -212,6 +218,7 @@ final class SystemNotificationManager: ObservableObject {
             bundleIDs: Defaults[.notificationAllowedApps],
             allApps: Defaults[.notificationsFromAllApps]
         )
+        XPCHelperClient.shared.setKeepNotificationBanners(Defaults[.notificationKeepBanner])
     }
 
     private func isAllowed(_ notification: SystemNotification) -> Bool {
@@ -273,6 +280,24 @@ final class SystemNotificationManager: ObservableObject {
             return true
         } catch {
             return false
+        }
+    }
+
+    /// Copies the banner's picture from the screen. Only works while the
+    /// banner is visible, so it's used with "keep the macOS banner" on.
+    private func captureAvatar(in rect: CGRect, for id: String) {
+        guard #available(macOS 15.2, *) else { return }
+        guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else { return }
+        Task { @MainActor [weak self] in
+            // Let the banner finish sliding in before taking its picture.
+            try? await Task.sleep(for: .milliseconds(450))
+            guard let image = try? await SCScreenshotManager.captureImage(in: rect) else { return }
+            let avatar = NSImage(cgImage: image, size: rect.size)
+            guard let self else { return }
+            if self.activeNotification?.id == id { self.activeNotification?.avatar = avatar }
+            if let index = self.queuedNotifications.firstIndex(where: { $0.id == id }) {
+                self.queuedNotifications[index].avatar = avatar
+            }
         }
     }
 

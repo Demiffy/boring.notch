@@ -16,6 +16,7 @@ private struct NotificationApp: Identifiable {
 struct NotificationSettingsView: View {
     @Default(.notificationLiveActivity) private var notificationLiveActivity
     @Default(.notificationsFromAllApps) private var notificationsFromAllApps
+    @Default(.notificationKeepBanner) private var notificationKeepBanner
     @Default(.notificationAllowedApps) private var allowedApps
     @State private var isAccessibilityAuthorized = true
 
@@ -31,6 +32,16 @@ struct NotificationSettingsView: View {
                 Defaults.Toggle(key: .notificationLiveActivity) {
                     Text("Show notifications in the notch")
                 }
+                Defaults.Toggle(key: .notificationKeepBanner) {
+                    Text("Keep the macOS banner too")
+                }
+                .disabled(!notificationLiveActivity)
+                .onChange(of: notificationKeepBanner) { _, _ in SystemNotificationManager.shared.updateFilter() }
+                Defaults.Toggle(key: .notificationShowAvatars) {
+                    Text("Show sender pictures")
+                    Text("Uses the avatar from the banner, like a Discord profile picture. Needs Screen Recording.")
+                }
+                .disabled(!notificationLiveActivity)
             } footer: {
                 Text("Requires \(AccessibilityPermission.displayName). Only visible banners are mirrored.")
                     .font(.caption)

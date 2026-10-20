@@ -356,6 +356,12 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    func setKeepNotificationBanners(_ keep: Bool) {
+        Task {
+            try? await ensureRemoteService().withService { $0.setKeepNotificationBanners(keep) }
+        }
+    }
+
     func quitApplication(pid: Int32) {
         Task {
             try? await ensureRemoteService().withService { $0.quitApplication(pid: pid) }

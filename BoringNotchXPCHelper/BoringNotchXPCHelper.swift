@@ -162,7 +162,8 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
                     "bundleID": notification.bundleID ?? "",
                     "title": notification.title ?? "",
                     "subtitle": notification.subtitle ?? "",
-                    "body": notification.body ?? ""
+                    "body": notification.body ?? "",
+                    "iconRect": notification.iconRect.map { NSStringFromRect(NSRectFromCGRect($0)) } ?? ""
                 ])
             }
             let started = watcher.start()
@@ -173,6 +174,10 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
 
     @objc func stopNotificationWatching() {
         DispatchQueue.main.async { Self.watcher.stop() }
+    }
+
+    @objc func setKeepNotificationBanners(_ keep: Bool) {
+        DispatchQueue.main.async { Self.watcher.keepBanners = keep }
     }
 
     @objc func openNotification(token: String, with reply: @escaping (Bool) -> Void) {

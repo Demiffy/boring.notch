@@ -44,6 +44,16 @@ private extension AXUIElement {
         AXValueGetValue(value as! AXValue, .cgPoint, &point)
         return point
     }
+
+    func size(_ attribute: String) -> CGSize? {
+        guard let value = self[attribute],
+              CFGetTypeID(value as CFTypeRef) == AXValueGetTypeID(),
+              AXValueGetType(value as! AXValue) == .cgSize
+        else { return nil }
+        var size = CGSize.zero
+        AXValueGetValue(value as! AXValue, .cgSize, &size)
+        return size
+    }
 }
 
 struct CapturedNotification {
@@ -53,6 +63,10 @@ struct CapturedNotification {
     let title: String?
     let subtitle: String?
     let body: String?
+    /// Where the banner draws its picture (the sender's avatar for chat apps),
+    /// in global top-left coordinates. Accessibility can't hand over the image
+    /// itself, only where it is, so the app captures that square.
+    let iconRect: CGRect?
 }
 
 final class NotificationWatcher {
@@ -85,6 +99,10 @@ final class NotificationWatcher {
         allowedBundleIDs = bundleIDs
         mirrorAllApps = allApps
     }
+
+    /// When true the macOS banner stays where it is and the notch only adds
+    /// to it; otherwise the banner is parked off-screen and the notch replaces it.
+    var keepBanners = false
 
     @discardableResult
     func start() -> Bool {
@@ -275,9 +293,11 @@ final class NotificationWatcher {
 
                     let notification = capture(banner, token: token)
                     guard mirrorAllApps || isAllowed(notification) else { continue }
-                    guard park(window, for: token) else {
-                        NSLog("[boringNotch] could not hide notification banner \(token)")
-                        continue
+                    if !keepBanners {
+                        guard park(window, for: token) else {
+                            NSLog("[boringNotch] could not hide notification banner \(token)")
+                            continue
+                        }
                     }
 
                     liveTokens.insert(token)
@@ -413,7 +433,27 @@ final class NotificationWatcher {
             bundleID: appName.flatMap(bundleID(forAppNamed:)),
             title: parts["title"],
             subtitle: parts["subtitle"],
-            body: parts["body"]
+            body: parts["body"],
+            iconRect: iconRect(in: banner)
+        )
+    }
+
+    /// The square left of the banner's text, where the icon or avatar sits.
+    private func iconRect(in banner: AXUIElement) -> CGRect? {
+        guard let bannerOrigin = banner.point(kAXPositionAttribute),
+              let bannerSize = banner.size(kAXSizeAttribute) else { return nil }
+        let textLeft = banner.children()
+            .filter { ($0[kAXRoleAttribute] as? String) == (kAXStaticTextRole as String) }
+            .compactMap { $0.point(kAXPositionAttribute)?.x }
+            .min()
+        guard let textLeft else { return nil }
+        let side = min(bannerSize.height - 16, textLeft - bannerOrigin.x - 18)
+        guard side > 12 else { return nil }
+        return CGRect(
+            x: bannerOrigin.x + (textLeft - bannerOrigin.x - side) / 2,
+            y: bannerOrigin.y + (bannerSize.height - side) / 2,
+            width: side,
+            height: side
         )
     }
 

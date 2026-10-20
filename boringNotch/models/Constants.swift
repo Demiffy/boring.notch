@@ -519,6 +519,10 @@ extension Defaults.Keys {
     static let demiffyShareNowPlaying = Key<Bool>("demiffyShareNowPlaying", default: true)
     static let demiffyShareActivity = Key<Bool>("demiffyShareActivity", default: true)
     static let notificationsFromAllApps = Key<Bool>("notificationsFromAllApps", default: false)
+    /// Leave the macOS banner in place; the notch only adds a small indicator.
+    static let notificationKeepBanner = Key<Bool>("notificationKeepBanner", default: true)
+    /// Show the sender's picture (e.g. a Discord avatar) instead of the app icon. Needs Screen Recording.
+    static let notificationShowAvatars = Key<Bool>("notificationShowAvatars", default: true)
     static let notificationAllowedApps = Key<Set<String>>(
         "notificationAllowedApps",
         default: []
