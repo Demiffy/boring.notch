@@ -176,6 +176,12 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         DispatchQueue.main.async { Self.watcher.stop() }
     }
 
+    @objc func notificationIconRect(token: String, with reply: @escaping (String) -> Void) {
+        DispatchQueue.main.async {
+            reply(Self.watcher.iconRect(token: token).map { NSStringFromRect(NSRectFromCGRect($0)) } ?? "")
+        }
+    }
+
     @objc func setKeepNotificationBanners(_ keep: Bool) {
         DispatchQueue.main.async { Self.watcher.keepBanners = keep }
     }

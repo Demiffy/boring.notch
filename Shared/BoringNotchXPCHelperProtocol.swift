@@ -64,6 +64,7 @@ final class BNLunarBrightnessEvent: NSObject, NSSecureCoding {
     func quitApplication(pid: Int32)
     func openNotification(token: String, with reply: @escaping (Bool) -> Void)
     func setKeepNotificationBanners(_ keep: Bool)
+    func notificationIconRect(token: String, with reply: @escaping (String) -> Void)
 }
 
 @objc protocol BoringNotchXPCHelperDelegate {

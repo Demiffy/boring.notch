@@ -356,6 +356,19 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    func notificationIconRect(token: String) async -> CGRect? {
+        do {
+            let service = ensureRemoteService()
+            let value: String = try await service.withContinuation { service, continuation in
+                service.notificationIconRect(token: token) { continuation.resume(returning: $0) }
+            }
+            return value.isEmpty ? nil : NSRectFromString(value)
+        } catch {
+            lastError = .transport(underlying: error)
+            return nil
+        }
+    }
+
     func setKeepNotificationBanners(_ keep: Bool) {
         Task {
             try? await ensureRemoteService().withService { $0.setKeepNotificationBanners(keep) }

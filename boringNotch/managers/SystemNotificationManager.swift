@@ -289,14 +289,27 @@ final class SystemNotificationManager: ObservableObject {
         guard #available(macOS 15.2, *) else { return }
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else { return }
         Task { @MainActor [weak self] in
-            // Let the banner finish sliding in before taking its picture.
-            try? await Task.sleep(for: .milliseconds(450))
-            guard let image = try? await SCScreenshotManager.captureImage(in: rect) else { return }
-            let avatar = NSImage(cgImage: image, size: rect.size)
+            // Let the banner finish sliding in, then measure where it ended up.
+            try? await Task.sleep(for: .milliseconds(600))
+            let settled = await XPCHelperClient.shared.notificationIconRect(token: id) ?? rect
+            guard let image = await Self.screenshot(of: settled) else { return }
+            let avatar = NSImage(cgImage: image, size: settled.size)
             guard let self else { return }
             if self.activeNotification?.id == id { self.activeNotification?.avatar = avatar }
             if let index = self.queuedNotifications.firstIndex(where: { $0.id == id }) {
                 self.queuedNotifications[index].avatar = avatar
+            }
+        }
+    }
+
+    /// ScreenCaptureKit calls back on a background queue. Called from main-actor
+    /// code, Swift would treat that callback as main-actor too and trap when it
+    /// arrives elsewhere, so the capture lives in a nonisolated function.
+    @available(macOS 15.2, *)
+    nonisolated private static func screenshot(of rect: CGRect) async -> CGImage? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<CGImage?, Never>) in
+            SCScreenshotManager.captureImage(in: rect) { @Sendable image, _ in
+                continuation.resume(returning: image)
             }
         }
     }

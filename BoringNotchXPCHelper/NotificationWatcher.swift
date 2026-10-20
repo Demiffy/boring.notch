@@ -359,6 +359,12 @@ final class NotificationWatcher {
         return banners.isEmpty ? .ignored : .banners(banners)
     }
 
+    /// Where the banner's picture is right now. Read at capture time because
+    /// banners slide in: the position seen when one first appears is mid-animation.
+    func iconRect(token: String) -> CGRect? {
+        bannerByToken[token].flatMap(iconRect(in:))
+    }
+
     /// Presses the original banner, which is what clicking it in the corner
     /// would do (Discord, Messages and others jump to that chat). False when
     /// the banner has already gone away.
