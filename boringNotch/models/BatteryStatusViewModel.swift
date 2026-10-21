@@ -103,7 +103,12 @@ final class BatteryStatusViewModel: ObservableObject {
             Log.battery.debug("🔌 Charging: \(isCharging ? "Yes" : "No")")
             Log.battery.debug("maxCapacity: \(self.maxCapacity.map { "\($0)" } ?? "Unavailable")")
             Log.battery.debug("levelBattery: \(self.levelBattery)")
-            self.notifyImportanChangeStatus()
+            // After plugging in, macOS flips charging on and off a few times
+            // (power negotiation, Optimized Battery Charging, heat pauses).
+            // Only the first of those deserves a popup.
+            if Date().timeIntervalSince(self.lastPopupAt) > Self.chargingPopupQuietPeriod {
+                self.notifyImportanChangeStatus()
+            }
             withAnimation {
                 self.isCharging = isCharging
                 self.lastStatus = .charging(isCharging: isCharging, level: self.levelBattery)
@@ -156,7 +161,12 @@ final class BatteryStatusViewModel: ObservableObject {
 
     /// Notifies important changes in the battery status with an optional delay
     /// - Parameter delay: The delay before notifying the change, default is 0.0
+    /// How long charging on/off flips stay quiet after a battery popup.
+    private static let chargingPopupQuietPeriod: TimeInterval = 120
+    private var lastPopupAt = Date.distantPast
+
     private func notifyImportanChangeStatus(delay: Double = 0.0) {
+        lastPopupAt = Date()
         Task { [delay] in
             try? await Task.sleep(for: .seconds(delay))
             NotchUIEventBus.events.send(.expandingView(type: .battery))
