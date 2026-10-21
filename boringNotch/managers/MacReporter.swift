@@ -345,14 +345,25 @@ final class MacReporter {
     /// shows an eye meanwhile.
     private func startViewing(viewID: String, bundleID: String) {
         stopViewing()
-        guard let socket = try? client.viewSocket(viewID: viewID) else { return }
+        Log.app.info("view: start \(bundleID, privacy: .public)")
+        guard let socket = try? client.viewSocket(viewID: viewID) else {
+            Log.app.error("view: no socket (not connected to Demiffy?)")
+            return
+        }
         currentViewID = viewID
         viewSocket = socket
         client.viewing = Self.appName(bundleID) ?? bundleID
         socket.resume()
         let watcher = Task { [weak self] in await self?.watchWindow(viewID: viewID, bundleID: bundleID) }
         viewTask = Task { [weak self] in
-            while !Task.isCancelled, let message = try? await socket.receive() {
+            while !Task.isCancelled {
+                let message: URLSessionWebSocketTask.Message
+                do {
+                    message = try await socket.receive()
+                } catch {
+                    Log.app.info("view: socket closed: \(error.localizedDescription, privacy: .public)")
+                    break
+                }
                 guard case .string(let text) = message,
                       let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
                       json["type"] as? String == "input", let events = json["events"] as? [[String: Any]] else { continue }
@@ -410,6 +421,7 @@ final class MacReporter {
                     }
                 } catch {
                     problem = error.localizedDescription
+                    Log.app.error("view: window/stream: \(error.localizedDescription, privacy: .public)")
                 }
             }
             if problem != nil, let stream = viewStream {
