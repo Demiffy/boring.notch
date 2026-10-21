@@ -36,7 +36,11 @@ final class MacReporter {
     private var viewStream: WindowStream?
     /// Only the newest frame waits to go out; older ones are skipped.
     private var pendingFrame: Data?
-    private var sendingFrame = false
+    /// Frames the page hasn't acknowledged yet. Sending only when this is low
+    /// keeps the picture current on a slow link instead of queueing seconds of it.
+    private var framesInFlight = 0
+    private var lastAckAt = Date.distantPast
+    private var viewStats = (frames: 0, bytes: 0, started: Date())
     private var sentMeta: [String: String] = [:]
     private var viewTitle: String?
     private var viewProblem: String?
@@ -365,9 +369,12 @@ final class MacReporter {
                     break
                 }
                 guard case .string(let text) = message,
-                      let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
-                      json["type"] as? String == "input", let events = json["events"] as? [[String: Any]] else { continue }
-                await self?.applyInput(viewID: viewID, events: events)
+                      let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else { continue }
+                if json["type"] as? String == "ack" {
+                    self?.frameAcknowledged()
+                } else if json["type"] as? String == "input", let events = json["events"] as? [[String: Any]] {
+                    await self?.applyInput(viewID: viewID, events: events)
+                }
             }
             watcher.cancel()
             if self?.currentViewID == viewID { self?.stopViewing() }
@@ -375,6 +382,10 @@ final class MacReporter {
     }
 
     private func stopViewing() {
+        if currentViewID != nil, viewStats.frames > 0 {
+            let seconds = max(1, Date().timeIntervalSince(viewStats.started))
+            Log.app.info("view: sent \(self.viewStats.frames) frames in \(Int(seconds)) s, \(self.viewStats.bytes / self.viewStats.frames / 1024) KB each")
+        }
         viewTask?.cancel()
         viewSocket?.cancel(with: .goingAway, reason: nil)
         if let stream = viewStream { Task { await stream.stop() } }
@@ -384,6 +395,8 @@ final class MacReporter {
         currentViewID = nil
         viewedWindow = nil
         pendingFrame = nil
+        framesInFlight = 0
+        viewStats = (0, 0, Date())
         sentMeta = [:]
         viewTitle = nil
         viewProblem = nil
@@ -430,6 +443,11 @@ final class MacReporter {
             }
             viewProblem = problem
             sendViewMeta()
+            // An acknowledgement lost on the way mustn't stall the picture for good.
+            if framesInFlight > 0, Date().timeIntervalSince(lastAckAt) > 4 {
+                framesInFlight = 0
+                pumpFrames()
+            }
             try? await Task.sleep(for: .seconds(2))
         }
     }
@@ -440,16 +458,22 @@ final class MacReporter {
         pumpFrames()
     }
 
-    /// One frame on the wire at a time; whatever arrived meanwhile replaces the waiting one.
+    /// At most two frames the page hasn't confirmed; whatever arrives meanwhile
+    /// replaces the one waiting, so the next frame sent is always the newest.
     private func pumpFrames() {
-        guard !sendingFrame, let frame = pendingFrame, let socket = viewSocket else { return }
+        guard framesInFlight < 2, let frame = pendingFrame, let socket = viewSocket else { return }
         pendingFrame = nil
-        sendingFrame = true
-        Task { [weak self] in
-            try? await socket.send(.data(frame))
-            self?.sendingFrame = false
-            self?.pumpFrames()
-        }
+        if framesInFlight == 0 { lastAckAt = Date() }
+        framesInFlight += 1
+        viewStats.frames += 1
+        viewStats.bytes += frame.count
+        socket.send(.data(frame)) { _ in }
+    }
+
+    private func frameAcknowledged() {
+        framesInFlight = max(0, framesInFlight - 1)
+        lastAckAt = Date()
+        pumpFrames()
     }
 
     /// Title and problems for the page, sent only when they change.
