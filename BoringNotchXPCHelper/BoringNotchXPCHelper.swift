@@ -289,9 +289,10 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         if let nominal = data?["NominalChargeCapacity"] as? Double, let design = data?["DesignCapacity"] as? Double, design > 0 {
             details["healthPercent"] = min(100, nominal / design * 100)
         }
-        // Amperage is signed but stored unsigned; negative means discharging.
-        if let volts = props["Voltage"] as? Double, let raw = props["InstantAmperage"] as? UInt64 {
-            details["watts"] = abs(Double(Int64(bitPattern: raw))) / 1000 * volts / 1000
+        // Amperage (mA) is signed but may come back as a huge unsigned number;
+        // int64Value reads it either way. Negative means discharging.
+        if let volts = (props["Voltage"] as? NSNumber)?.doubleValue, let amps = (props["InstantAmperage"] as? NSNumber)?.int64Value {
+            details["watts"] = abs(Double(amps)) / 1000 * volts / 1000
         }
         if let minutes = props["TimeRemaining"] as? Int, minutes > 0, minutes < 65535 { details["minutesLeft"] = minutes }
         return details
