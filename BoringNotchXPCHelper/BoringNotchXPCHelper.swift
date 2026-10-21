@@ -329,6 +329,126 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         return entry
     }
 
+    // MARK: - Remote input (demiffy.com live view)
+
+    /// Brings the window to the front, then posts each event at its spot.
+    /// Clicks and scrolls put the pointer back where it was afterwards, so
+    /// someone at the Mac only sees it jump for a moment.
+    @objc func postWindowInput(_ events: [[String: Any]], pid: Int32, windowFrame: [Double], with reply: @escaping (String?) -> Void) {
+        guard AXIsProcessTrusted() else { return reply("The notch's helper doesn't have Accessibility access") }
+        guard windowFrame.count == 4, NSRunningApplication(processIdentifier: pid) != nil else { return reply("The window is gone") }
+        let frame = CGRect(x: windowFrame[0], y: windowFrame[1], width: windowFrame[2], height: windowFrame[3])
+        DispatchQueue.global(qos: .userInteractive).async {
+            if Self.bringToFront(pid: pid, frame: frame) { usleep(150_000) }
+            for event in events { Self.post(event, in: frame) }
+            reply(nil)
+        }
+    }
+
+    /// Returns true when something had to move (the caller waits for it).
+    private static func bringToFront(pid: pid_t, frame: CGRect) -> Bool {
+        let app = AXUIElementCreateApplication(pid)
+        var frontmost: CFTypeRef?
+        AXUIElementCopyAttributeValue(app, kAXFrontmostAttribute as CFString, &frontmost)
+        var windowsValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsValue)
+        let windows = windowsValue as? [AXUIElement] ?? []
+        let target = windows.first { window in
+            var position = CGPoint.zero, size = CGSize.zero
+            var value: CFTypeRef?
+            if AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &value) == .success, let value {
+                AXValueGetValue(value as! AXValue, .cgPoint, &position)
+            }
+            if AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &value) == .success, let value {
+                AXValueGetValue(value as! AXValue, .cgSize, &size)
+            }
+            return abs(position.x - frame.minX) < 4 && abs(position.y - frame.minY) < 4
+                && abs(size.width - frame.width) < 4 && abs(size.height - frame.height) < 4
+        }
+        var mainValue: CFTypeRef?
+        AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute as CFString, &mainValue)
+        let alreadyFront = (frontmost as? Bool) == true && target.map { CFEqual($0, mainValue) } != false
+        guard !alreadyFront else { return false }
+        AXUIElementSetAttributeValue(app, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        if let target { AXUIElementPerformAction(target, kAXRaiseAction as CFString) }
+        return true
+    }
+
+    private static func post(_ event: [String: Any], in frame: CGRect) {
+        let point = CGPoint(
+            x: frame.minX + (event["x"] as? Double ?? 0.5) * frame.width,
+            y: frame.minY + (event["y"] as? Double ?? 0.5) * frame.height
+        )
+        switch event["type"] as? String {
+        case "click":
+            let right = event["button"] as? String == "right"
+            let back = CGEvent(source: nil)?.location
+            let count = Int64(event["count"] as? Int ?? 1)
+            for type: CGEventType in right ? [.rightMouseDown, .rightMouseUp] : [.leftMouseDown, .leftMouseUp] {
+                let mouse = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: right ? .right : .left)
+                mouse?.setIntegerValueField(.mouseEventClickState, value: count)
+                mouse?.post(tap: .cghidEventTap)
+            }
+            if let back, count == 1, !right { usleep(30_000); CGWarpMouseCursorPosition(back) }
+        case "scroll":
+            let back = CGEvent(source: nil)?.location
+            CGWarpMouseCursorPosition(point)
+            let scroll = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+                                 wheel1: Int32(-(event["dy"] as? Double ?? 0)), wheel2: Int32(-(event["dx"] as? Double ?? 0)), wheel3: 0)
+            scroll?.location = point
+            scroll?.post(tap: .cghidEventTap)
+            if let back { usleep(30_000); CGWarpMouseCursorPosition(back) }
+        case "text":
+            for character in (event["text"] as? String ?? "") {
+                let units = Array(String(character).utf16)
+                for down in [true, false] {
+                    let key = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down)
+                    key?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+                    key?.post(tap: .cghidEventTap)
+                }
+            }
+        case "key":
+            guard let name = event["key"] as? String, let code = keyCodes[name] else { return }
+            var flags: CGEventFlags = []
+            for modifier in event["mods"] as? [String] ?? [] {
+                switch modifier {
+                case "cmd": flags.insert(.maskCommand)
+                case "shift": flags.insert(.maskShift)
+                case "alt": flags.insert(.maskAlternate)
+                case "ctrl": flags.insert(.maskControl)
+                default: break
+                }
+            }
+            let units = name.count == 1 ? Array(name.utf16) : []
+            for down in [true, false] {
+                let key = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)
+                key?.flags = flags
+                if !units.isEmpty { key?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units) }
+                key?.post(tap: .cghidEventTap)
+            }
+        default:
+            break
+        }
+    }
+
+    /// ANSI key positions; letters and digits are only used with modifiers (shortcuts).
+    private static let keyCodes: [String: CGKeyCode] = {
+        var codes: [String: CGKeyCode] = [
+            "Enter": 36, "Tab": 48, " ": 49, "Backspace": 51, "Escape": 53, "Delete": 117,
+            "Home": 115, "End": 119, "PageUp": 116, "PageDown": 121,
+            "ArrowLeft": 123, "ArrowRight": 124, "ArrowDown": 125, "ArrowUp": 126,
+        ]
+        let layout: [(String, CGKeyCode)] = [
+            ("a", 0), ("s", 1), ("d", 2), ("f", 3), ("h", 4), ("g", 5), ("z", 6), ("x", 7), ("c", 8), ("v", 9),
+            ("b", 11), ("q", 12), ("w", 13), ("e", 14), ("r", 15), ("y", 16), ("t", 17), ("1", 18), ("2", 19),
+            ("3", 20), ("4", 21), ("6", 22), ("5", 23), ("=", 24), ("9", 25), ("7", 26), ("-", 27), ("8", 28),
+            ("0", 29), ("]", 30), ("o", 31), ("u", 32), ("[", 33), ("i", 34), ("p", 35), ("l", 37), ("j", 38),
+            ("'", 39), ("k", 40), (";", 41), ("\\", 42), (",", 43), ("/", 44), ("n", 45), ("m", 46), (".", 47), ("`", 50),
+        ]
+        for (key, code) in layout { codes[key] = code }
+        return codes
+    }()
+
     /// Asks an app to quit normally (it can still save or ask first).
     @objc func quitApplication(pid: Int32) {
         DispatchQueue.main.async {

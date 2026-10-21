@@ -31,6 +31,10 @@ final class MacReporter {
     private var uploadedIcons = Set<String>()
     private var viewTask: Task<Void, Never>?
     private var currentViewID: String?
+    /// Where the viewed window was in the latest frame; website clicks map onto it.
+    private var viewedWindow: (frame: CGRect, pid: pid_t)?
+    private var lastInputAt = Date.distantPast
+    private var inputProblem: (message: String, at: Date)?
 
     private init() {}
 
@@ -333,6 +337,7 @@ final class MacReporter {
     private func startViewing(viewID: String, bundleID: String) {
         viewTask?.cancel()
         currentViewID = viewID
+        viewedWindow = nil
         client.viewing = Self.appName(bundleID) ?? bundleID
         viewTask = Task { [weak self] in
             let started = Date()
@@ -346,15 +351,39 @@ final class MacReporter {
                 } else {
                     do { frame = try await WindowCapture.capture(bundleID: bundleID) } catch { problem = error.localizedDescription }
                 }
-                let keepGoing = (try? await self.client.postFrame(viewID: viewID, jpeg: frame?.jpeg, title: frame?.title, error: problem)) ?? false
+                if let frame, let pid = frame.pid { self.viewedWindow = (frame.windowFrame, pid) }
+                let inputError = self.inputProblem.flatMap { Date().timeIntervalSince($0.at) < 8 ? $0.message : nil }
+                let keepGoing = (try? await self.client.postFrame(
+                    viewID: viewID, jpeg: frame?.jpeg, title: frame?.title, error: problem, inputError: inputError
+                )) ?? false
                 guard keepGoing else { break }
-                try? await Task.sleep(for: .seconds(1))
+                // Quicker frames right after a click or key, so it feels live.
+                let interacting = Date().timeIntervalSince(self.lastInputAt) < 10
+                try? await Task.sleep(for: .milliseconds(interacting ? 300 : 1000))
             }
             if self?.currentViewID == viewID {
                 self?.client.viewing = nil
                 self?.currentViewID = nil
             }
         }
+    }
+
+    /// Clicks, scrolls and keys from the website, only into the window being
+    /// viewed right now, never while locked, and only if allowed in settings.
+    private func applyInput(viewID: String, events: [[String: Any]]) async {
+        guard viewID == currentViewID else { return }
+        let problem: String?
+        if !Defaults[.demiffyAllowViewing] || !Defaults[.demiffyAllowControl] {
+            problem = "Control is switched off in the notch's Demiffy settings"
+        } else if isLocked {
+            problem = "The Mac is locked"
+        } else if let window = viewedWindow {
+            problem = await XPCHelperClient.shared.postWindowInput(events, pid: window.pid, windowFrame: window.frame)
+        } else {
+            problem = "Wait for the first picture"
+        }
+        lastInputAt = Date()
+        inputProblem = problem.map { ($0, Date()) }
     }
 
     // MARK: - Clipboard
@@ -460,6 +489,10 @@ final class MacReporter {
         case "view":
             guard let viewID = command["viewId"] as? String, let bundleID = command["bundleId"] as? String else { return }
             startViewing(viewID: viewID, bundleID: bundleID)
+            return
+        case "viewInput":
+            guard let viewID = command["viewId"] as? String, let events = command["events"] as? [[String: Any]] else { return }
+            Task { await self.applyInput(viewID: viewID, events: events) }
             return
         case "getClipboard":
             guard let requestID = command["requestId"] as? String else { return }

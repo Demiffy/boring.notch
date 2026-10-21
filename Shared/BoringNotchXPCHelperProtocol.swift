@@ -67,6 +67,9 @@ final class BNLunarBrightnessEvent: NSObject, NSSecureCoding {
     /// Things the sandbox can't see, for the Mac page: busiest processes,
     /// battery health and power draw, Wi-Fi signal.
     func systemExtras(with reply: @escaping ([String: Any]) -> Void)
+    /// Clicks, scrolls or types into one window for demiffy.com's live view.
+    /// Replies with a problem, or nil once the events are posted.
+    func postWindowInput(_ events: [[String: Any]], pid: Int32, windowFrame: [Double], with reply: @escaping (String?) -> Void)
     func openNotification(token: String, with reply: @escaping (Bool) -> Void)
     func setKeepNotificationBanners(_ keep: Bool)
     func notificationIconRect(token: String, with reply: @escaping (String) -> Void)

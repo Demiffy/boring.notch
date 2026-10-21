@@ -397,6 +397,20 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    /// Returns a problem to show on the website, or nil when the input was posted.
+    func postWindowInput(_ events: [[String: Any]], pid: Int32, windowFrame: CGRect) async -> String? {
+        do {
+            let service = ensureRemoteService()
+            let frame = [windowFrame.minX, windowFrame.minY, windowFrame.width, windowFrame.height].map(Double.init)
+            return try await service.withContinuation { service, continuation in
+                service.postWindowInput(events, pid: pid, windowFrame: frame) { continuation.resume(returning: $0) }
+            }
+        } catch {
+            lastError = .transport(underlying: error)
+            return "Couldn't reach the notch's helper"
+        }
+    }
+
     /// The helper opens the file (the sandbox can't) and passes the handle.
     func openFileForUpload(path: String) async throws -> FileHandle {
         let service = ensureRemoteService()

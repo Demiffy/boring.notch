@@ -94,6 +94,10 @@ struct DemiffySettingsView: View {
                     Text("Let the website view an app's window")
                 }
                 .disabled(!reportMac)
+                Defaults.Toggle(key: .demiffyAllowControl) {
+                    Text("…and click and type in it")
+                }
+                .disabled(!reportMac || !Defaults[.demiffyAllowViewing])
             } header: {
                 Text("This Mac")
             } footer: {
