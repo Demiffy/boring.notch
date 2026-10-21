@@ -332,11 +332,12 @@ final class MacReporter {
 
     // MARK: - Live window view
 
-    /// Sends pictures of one app's window back to back (a few a second, more
-    /// right after a click or key) for as long as the page keeps asking — the
-    /// server says when nobody watches — ten minutes at most. A picture that
-    /// didn't change isn't uploaded again. Never while locked; the notch shows
-    /// an eye meanwhile.
+    /// Sends pictures of one app's window for as long as the page keeps asking
+    /// (the server says when nobody watches), ten minutes at most. The next
+    /// picture is taken while the last one uploads — each upload costs a round
+    /// trip through the tunnel, and waiting on it halved the frame rate. A
+    /// picture that didn't change isn't sent, just a small keep-alive every
+    /// couple of seconds. Never while locked; the notch shows an eye meanwhile.
     private func startViewing(viewID: String, bundleID: String) {
         viewTask?.cancel()
         currentViewID = viewID
@@ -345,8 +346,11 @@ final class MacReporter {
         viewTask = Task { [weak self] in
             let started = Date()
             var window: (found: SCWindow, at: Date)?
-            var lastJPEG: Data?
+            var lastSent: (jpeg: Data?, problem: String?, inputError: String?, at: Date)?
+            var frameNumber = 0
+            var uploads: [Task<Bool, Never>] = []
             while let self, !Task.isCancelled, Date().timeIntervalSince(started) < 600 {
+                let frameStart = Date()
                 var frame: WindowCapture.Frame?
                 var problem: String?
                 if !Defaults[.demiffyAllowViewing] {
@@ -367,16 +371,30 @@ final class MacReporter {
                 }
                 if let frame, let pid = frame.pid { self.viewedWindow = (frame.windowFrame, pid) }
                 let inputError = self.inputProblem.flatMap { Date().timeIntervalSince($0.at) < 8 ? $0.message : nil }
-                let unchanged = frame != nil && frame?.jpeg == lastJPEG
-                if let frame { lastJPEG = frame.jpeg }
-                let keepGoing = (try? await self.client.postFrame(
-                    viewID: viewID, jpeg: unchanged ? nil : frame?.jpeg, title: frame?.title, error: problem,
-                    inputError: inputError, unchanged: unchanged
-                )) ?? false
-                guard keepGoing else { break }
-                // Quicker still for a while after a click or key, so it feels live.
+                let unchanged = frame != nil && frame?.jpeg == lastSent?.jpeg
+                let news = !unchanged || problem != lastSent?.problem || inputError != lastSent?.inputError
+                if news || Date().timeIntervalSince(lastSent?.at ?? .distantPast) > 2 {
+                    frameNumber += 1
+                    let number = frameNumber
+                    let jpeg = unchanged ? nil : frame?.jpeg
+                    let title = frame?.title
+                    lastSent = (frame?.jpeg ?? lastSent?.jpeg, problem, inputError, Date())
+                    uploads.append(Task { [weak self] in
+                        let keepGoing = (try? await self?.client.postFrame(
+                            viewID: viewID, jpeg: jpeg, title: title, error: problem,
+                            inputError: inputError, unchanged: unchanged, frameNumber: number
+                        )) ?? false
+                        // Nobody's watching any more (or the server is unreachable): stop.
+                        if !keepGoing, self?.currentViewID == viewID { self?.viewTask?.cancel() }
+                        return keepGoing
+                    })
+                    // At most two on the way at once.
+                    if uploads.count >= 2 { _ = await uploads.removeFirst().value }
+                }
+                // Up to ~8 frames a second right after a click or key, ~3 otherwise.
                 let interacting = Date().timeIntervalSince(self.lastInputAt) < 10
-                try? await Task.sleep(for: .milliseconds(interacting ? 100 : 350))
+                let wait = (interacting ? 0.12 : 0.35) - Date().timeIntervalSince(frameStart)
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
             }
             if self?.currentViewID == viewID {
                 self?.client.viewing = nil

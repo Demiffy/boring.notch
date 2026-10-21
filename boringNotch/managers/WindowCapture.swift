@@ -36,10 +36,11 @@ enum WindowCapture {
         return window
     }
 
-    /// One picture of the window, at most 1600 px wide (Retina sharp for small windows), as a JPEG.
+    /// One picture of the window, at most 1280 px wide (plenty for a phone,
+    /// small enough to upload several a second), as a JPEG.
     nonisolated static func capture(_ window: SCWindow) async throws -> Frame {
         let configuration = SCStreamConfiguration()
-        let scale = min(2, 1600 / window.frame.width)
+        let scale = min(2, 1280 / window.frame.width)
         configuration.width = Int(window.frame.width * scale)
         configuration.height = Int(window.frame.height * scale)
         configuration.showsCursor = false
@@ -63,7 +64,7 @@ enum WindowCapture {
         context.fill(bounds)
         context.draw(image, in: bounds)
         guard let opaque = context.makeImage() else { return nil }
-        return NSBitmapImageRep(cgImage: opaque).representation(using: .jpeg, properties: [.compressionFactor: 0.6])
+        return NSBitmapImageRep(cgImage: opaque).representation(using: .jpeg, properties: [.compressionFactor: 0.5])
     }
 
     private nonisolated static func score(_ window: SCWindow) -> CGFloat {
