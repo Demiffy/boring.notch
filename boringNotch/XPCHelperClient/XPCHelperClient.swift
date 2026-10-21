@@ -373,6 +373,30 @@ final class XPCHelperClient: NSObject, ObservableObject {
         send { $0.setKeepNotificationBanners(keep) }
     }
 
+    func searchFiles(query: String) async -> [[String: Any]] {
+        do {
+            let service = ensureRemoteService()
+            return try await service.withContinuation { service, continuation in
+                service.searchFiles(query: query) { continuation.resume(returning: $0) }
+            }
+        } catch {
+            lastError = .transport(underlying: error)
+            return []
+        }
+    }
+
+    /// The helper opens the file (the sandbox can't) and passes the handle.
+    func openFileForUpload(path: String) async throws -> FileHandle {
+        let service = ensureRemoteService()
+        let (handle, problem): (FileHandle?, String?) = try await service.withContinuation { service, continuation in
+            service.openFileForUpload(path: path) { handle, problem in
+                continuation.resume(returning: (handle, problem))
+            }
+        }
+        guard let handle else { throw DemiffyError(problem ?? "Couldn't open the file") }
+        return handle
+    }
+
     func quitApplication(pid: Int32) {
         send { $0.quitApplication(pid: pid) }
     }

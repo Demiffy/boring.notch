@@ -192,6 +192,87 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         }
     }
 
+    // MARK: - Search my Mac (demiffy.com)
+
+    private static let maxUploadBytes = 95 * 1024 * 1024
+    private static let maxSearchResults = 50
+
+    /// The home folder minus what's private: Library (app data, mail,
+    /// keychains), anything hidden (.ssh, .config, …) and the Trash.
+    static func isSearchable(_ path: String) -> Bool {
+        let home = NSHomeDirectory()
+        let standardized = (path as NSString).standardizingPath
+        guard standardized.hasPrefix(home + "/") else { return false }
+        let parts = standardized.dropFirst(home.count + 1).split(separator: "/")
+        guard let first = parts.first, first != "Library" else { return false }
+        return !parts.contains { $0.hasPrefix(".") }
+    }
+
+    /// Spotlight over the home folder: filename matches first, then files
+    /// whose contents match, newest first within each.
+    @objc func searchFiles(query: String, with reply: @escaping ([[String: Any]]) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let home = NSHomeDirectory()
+            let byName = Self.mdfind(["-onlyin", home, "-name", query])
+            let byContent = Self.mdfind(["-onlyin", home, query])
+            var seen = Set<String>()
+            var groups: [[[String: Any]]] = [[], []]
+            for (group, paths) in [byName, byContent].enumerated() {
+                for path in paths where seen.insert(path).inserted && Self.isSearchable(path) {
+                    if let entry = Self.describe(path) { groups[group].append(entry) }
+                    if groups[0].count + groups[1].count >= Self.maxSearchResults * 2 { break }
+                }
+            }
+            let newestFirst: ([String: Any], [String: Any]) -> Bool = {
+                ($0["modifiedAt"] as? String ?? "") > ($1["modifiedAt"] as? String ?? "")
+            }
+            reply(Array((groups[0].sorted(by: newestFirst) + groups[1].sorted(by: newestFirst)).prefix(Self.maxSearchResults)))
+        }
+    }
+
+    /// Opens a file for the app to upload. The sandboxed app can't read
+    /// arbitrary paths, but it can read from a handle passed over XPC.
+    @objc func openFileForUpload(path: String, with reply: @escaping (FileHandle?, String?) -> Void) {
+        guard Self.isSearchable(path) else { return reply(nil, "That file isn't in a searchable folder") }
+        let url = URL(fileURLWithPath: path)
+        let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values?.isRegularFile == true else { return reply(nil, "Not a file") }
+        guard (values?.fileSize ?? 0) <= Self.maxUploadBytes else { return reply(nil, "Over 95 MB — too big to send") }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return reply(nil, "Couldn't open the file") }
+        reply(handle, nil)
+    }
+
+    private static func mdfind(_ arguments: [String]) -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return [] }
+        // A broad query can list thousands of files; stop waiting after 4 s.
+        let deadline = DispatchTime.now() + 4
+        DispatchQueue.global().asyncAfter(deadline: deadline) { if process.isRunning { process.terminate() } }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self).split(separator: "\n").prefix(2000).map(String.init)
+    }
+
+    private static func describe(_ path: String) -> [String: Any]? {
+        let url = URL(fileURLWithPath: path)
+        guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey, .localizedTypeDescriptionKey, .isPackageKey]) else { return nil }
+        let isFolder = values.isDirectory == true && values.isPackage != true
+        var entry: [String: Any] = [
+            "name": url.lastPathComponent,
+            "path": path,
+            "isFolder": isFolder,
+            "kind": values.localizedTypeDescription ?? "",
+        ]
+        if let size = values.fileSize { entry["size"] = size }
+        if let date = values.contentModificationDate { entry["modifiedAt"] = ISO8601DateFormatter().string(from: date) }
+        return entry
+    }
+
     /// Asks an app to quit normally (it can still save or ask first).
     @objc func quitApplication(pid: Int32) {
         DispatchQueue.main.async {

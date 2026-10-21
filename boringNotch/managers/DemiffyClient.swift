@@ -231,12 +231,31 @@ final class DemiffyClient: ObservableObject {
         let scoped = file.startAccessingSecurityScopedResource()
         defer { if scoped { file.stopAccessingSecurityScopedResource() } }
 
+        let input = try FileHandle(forReadingFrom: file)
+        defer { try? input.close() }
+        return try await send(input, named: file.lastPathComponent, expiryHours: Defaults[.demiffyLinkExpiryHours], progress: progress)
+    }
+
+    /// A file the website found with "Search Mac": the helper opened it (the
+    /// sandbox can't), it goes to Cloud/From Mac with a one-day link.
+    func uploadFromMac(_ input: FileHandle, named name: String) async throws -> String {
+        defer { try? input.close() }
+        return try await send(input, named: name, expiryHours: 24, folder: "From Mac") { _ in }
+    }
+
+    private func send(
+        _ input: FileHandle,
+        named name: String,
+        expiryHours: Int,
+        folder: String? = nil,
+        progress: @escaping @MainActor @Sendable (Double) -> Void
+    ) async throws -> String {
         let boundary = "notch-\(UUID().uuidString)"
         var request = try request("notch/upload", method: "POST")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 600
 
-        let body = try Self.multipartFile(for: file, boundary: boundary, expiryHours: Defaults[.demiffyLinkExpiryHours])
+        let body = try Self.multipartFile(reading: input, named: name, boundary: boundary, expiryHours: expiryHours, folder: folder)
         defer { try? FileManager.default.removeItem(at: body) }
 
         let delegate = UploadProgressDelegate { fraction in
@@ -249,23 +268,24 @@ final class DemiffyClient: ObservableObject {
     }
 
     /// Streams the form to a temp file so a 90 MB video never sits in memory.
-    private static func multipartFile(for file: URL, boundary: String, expiryHours: Int) throws -> URL {
+    private static func multipartFile(reading input: FileHandle, named name: String, boundary: String, expiryHours: Int, folder: String?) throws -> URL {
         let body = FileManager.default.temporaryDirectory.appendingPathComponent("notch-upload-\(UUID().uuidString)")
         FileManager.default.createFile(atPath: body.path, contents: nil)
         let out = try FileHandle(forWritingTo: body)
         defer { try? out.close() }
 
         // Quotes or line breaks in a filename would break the form header.
-        let filename = file.lastPathComponent
+        let filename = name
             .replacingOccurrences(of: "\"", with: "'")
             .components(separatedBy: .newlines).joined(separator: " ")
         var head = "--\(boundary)\r\nContent-Disposition: form-data; name=\"expiresInHours\"\r\n\r\n\(expiryHours)\r\n"
+        if let folder {
+            head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"folder\"\r\n\r\n\(folder)\r\n"
+        }
         head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n"
         head += "Content-Type: application/octet-stream\r\n\r\n"
         try out.write(contentsOf: Data(head.utf8))
 
-        let input = try FileHandle(forReadingFrom: file)
-        defer { try? input.close() }
         while let chunk = try input.read(upToCount: 1 << 20), !chunk.isEmpty {
             try out.write(contentsOf: chunk)
         }

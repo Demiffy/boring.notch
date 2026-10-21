@@ -203,6 +203,37 @@ final class MacReporter {
 
     // MARK: - Commands
 
+    // MARK: - Search my Mac
+
+    private func answerSearch(searchId: String, query: String) async {
+        let results = await XPCHelperClient.shared.searchFiles(query: query)
+        try? await client.postJSON("notch/search-results", body: ["searchId": searchId, "results": results])
+    }
+
+    /// Sends a file the website picked from a search to Cloud/From Mac, and
+    /// says so in the notch — a file leaving the Mac shouldn't go unnoticed.
+    private func answerFetch(fetchId: String, path: String) async {
+        let name = (path as NSString).lastPathComponent
+        do {
+            let handle = try await XPCHelperClient.shared.openFileForUpload(path: path)
+            let url = try await client.uploadFromMac(handle, named: name)
+            try? await client.postJSON("notch/fetch-result", body: ["fetchId": fetchId, "url": url, "name": name])
+            SystemNotificationManager.shared.present(SystemNotification(
+                id: fetchId,
+                appName: "Demiffy",
+                bundleID: nil,
+                title: "Sent to your Cloud",
+                subtitle: nil,
+                body: "\(name) was fetched from demiffy.com",
+                receivedAt: Date(),
+                iconAsset: "DemiffyLogo",
+                url: client.siteURL(path: "cloud")
+            ))
+        } catch {
+            try? await client.postJSON("notch/fetch-result", body: ["fetchId": fetchId, "error": error.localizedDescription])
+        }
+    }
+
     /// Shows the lock screen; the session stays logged in. Called from the app
     /// itself because the login session agent isn't reachable from the XPC
     /// helper (it fails there with "Unable to get the SessionAgent endpoint").
@@ -265,6 +296,12 @@ final class MacReporter {
             }
         case "lock":
             lockScreen()
+        case "search":
+            guard let searchId = command["searchId"] as? String, let query = command["query"] as? String else { return }
+            Task { await self.answerSearch(searchId: searchId, query: query) }
+        case "fetch":
+            guard let fetchId = command["fetchId"] as? String, let path = command["path"] as? String else { return }
+            Task { await self.answerFetch(fetchId: fetchId, path: path) }
         default:
             break
         }

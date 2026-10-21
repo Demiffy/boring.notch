@@ -62,6 +62,8 @@ final class BNLunarBrightnessEvent: NSObject, NSSecureCoding {
     func setNotificationFilter(_ bundleIDs: [String], allApps: Bool)
     func nudgeCursor(throughX x: Double, y: Double)
     func quitApplication(pid: Int32)
+    func searchFiles(query: String, with reply: @escaping ([[String: Any]]) -> Void)
+    func openFileForUpload(path: String, with reply: @escaping (FileHandle?, String?) -> Void)
     func openNotification(token: String, with reply: @escaping (Bool) -> Void)
     func setKeepNotificationBanners(_ keep: Bool)
     func notificationIconRect(token: String, with reply: @escaping (String) -> Void)
