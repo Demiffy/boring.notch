@@ -32,9 +32,16 @@ final class MacReporter {
     private var uploadedIcons = Set<String>()
     private var viewTask: Task<Void, Never>?
     private var currentViewID: String?
+    private var viewSocket: URLSessionWebSocketTask?
+    private var viewStream: WindowStream?
+    /// Only the newest frame waits to go out; older ones are skipped.
+    private var pendingFrame: Data?
+    private var sendingFrame = false
+    private var sentMeta: [String: String] = [:]
+    private var viewTitle: String?
+    private var viewProblem: String?
     /// Where the viewed window was in the latest frame; website clicks map onto it.
     private var viewedWindow: (frame: CGRect, pid: pid_t)?
-    private var lastInputAt = Date.distantPast
     private var inputProblem: (message: String, at: Date)?
 
     private init() {}
@@ -332,75 +339,117 @@ final class MacReporter {
 
     // MARK: - Live window view
 
-    /// Sends pictures of one app's window for as long as the page keeps asking
-    /// (the server says when nobody watches), ten minutes at most. The next
-    /// picture is taken while the last one uploads — each upload costs a round
-    /// trip through the tunnel, and waiting on it halved the frame rate. A
-    /// picture that didn't change isn't sent, just a small keep-alive every
-    /// couple of seconds. Never while locked; the notch shows an eye meanwhile.
+    /// Streams one app's window to demiffy.com over a WebSocket and applies the
+    /// clicks and keys that come back, until the page closes (the server then
+    /// closes this end), ten minutes at most. Never while locked; the notch
+    /// shows an eye meanwhile.
     private func startViewing(viewID: String, bundleID: String) {
-        viewTask?.cancel()
+        stopViewing()
+        guard let socket = try? client.viewSocket(viewID: viewID) else { return }
         currentViewID = viewID
-        viewedWindow = nil
+        viewSocket = socket
         client.viewing = Self.appName(bundleID) ?? bundleID
+        socket.resume()
+        let watcher = Task { [weak self] in await self?.watchWindow(viewID: viewID, bundleID: bundleID) }
         viewTask = Task { [weak self] in
-            let started = Date()
-            var window: (found: SCWindow, at: Date)?
-            var lastSent: (jpeg: Data?, problem: String?, inputError: String?, at: Date)?
-            var frameNumber = 0
-            var uploads: [Task<Bool, Never>] = []
-            while let self, !Task.isCancelled, Date().timeIntervalSince(started) < 600 {
-                let frameStart = Date()
-                var frame: WindowCapture.Frame?
-                var problem: String?
-                if !Defaults[.demiffyAllowViewing] {
-                    problem = "Viewing is switched off in the notch's Demiffy settings"
-                } else if self.isLocked {
-                    problem = "The Mac is locked"
-                } else {
-                    do {
-                        // Look the window up again every few seconds (it may move or close).
-                        if window == nil || Date().timeIntervalSince(window!.at) > 3 {
-                            window = (try await WindowCapture.findWindow(bundleID: bundleID), Date())
-                        }
-                        frame = try await WindowCapture.capture(window!.found)
-                    } catch {
-                        window = nil
-                        problem = error.localizedDescription
-                    }
-                }
-                if let frame, let pid = frame.pid { self.viewedWindow = (frame.windowFrame, pid) }
-                let inputError = self.inputProblem.flatMap { Date().timeIntervalSince($0.at) < 8 ? $0.message : nil }
-                let unchanged = frame != nil && frame?.jpeg == lastSent?.jpeg
-                let news = !unchanged || problem != lastSent?.problem || inputError != lastSent?.inputError
-                if news || Date().timeIntervalSince(lastSent?.at ?? .distantPast) > 2 {
-                    frameNumber += 1
-                    let number = frameNumber
-                    let jpeg = unchanged ? nil : frame?.jpeg
-                    let title = frame?.title
-                    lastSent = (frame?.jpeg ?? lastSent?.jpeg, problem, inputError, Date())
-                    uploads.append(Task { [weak self] in
-                        let keepGoing = (try? await self?.client.postFrame(
-                            viewID: viewID, jpeg: jpeg, title: title, error: problem,
-                            inputError: inputError, unchanged: unchanged, frameNumber: number
-                        )) ?? false
-                        // Nobody's watching any more (or the server is unreachable): stop.
-                        if !keepGoing, self?.currentViewID == viewID { self?.viewTask?.cancel() }
-                        return keepGoing
-                    })
-                    // At most two on the way at once.
-                    if uploads.count >= 2 { _ = await uploads.removeFirst().value }
-                }
-                // Up to ~8 frames a second right after a click or key, ~3 otherwise.
-                let interacting = Date().timeIntervalSince(self.lastInputAt) < 10
-                let wait = (interacting ? 0.12 : 0.35) - Date().timeIntervalSince(frameStart)
-                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            while !Task.isCancelled, let message = try? await socket.receive() {
+                guard case .string(let text) = message,
+                      let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+                      json["type"] as? String == "input", let events = json["events"] as? [[String: Any]] else { continue }
+                await self?.applyInput(viewID: viewID, events: events)
             }
-            if self?.currentViewID == viewID {
-                self?.client.viewing = nil
-                self?.currentViewID = nil
-            }
+            watcher.cancel()
+            if self?.currentViewID == viewID { self?.stopViewing() }
         }
+    }
+
+    private func stopViewing() {
+        viewTask?.cancel()
+        viewSocket?.cancel(with: .goingAway, reason: nil)
+        if let stream = viewStream { Task { await stream.stop() } }
+        viewTask = nil
+        viewSocket = nil
+        viewStream = nil
+        currentViewID = nil
+        viewedWindow = nil
+        pendingFrame = nil
+        sentMeta = [:]
+        viewTitle = nil
+        viewProblem = nil
+        client.viewing = nil
+    }
+
+    /// Every couple of seconds: is viewing still allowed, where is the window,
+    /// has it been ten minutes? Starts, follows or stops the stream to match.
+    private func watchWindow(viewID: String, bundleID: String) async {
+        let started = Date()
+        while !Task.isCancelled, currentViewID == viewID {
+            if Date().timeIntervalSince(started) > 600 {
+                viewSocket?.cancel(with: .normalClosure, reason: nil)
+                return
+            }
+            var problem: String?
+            if !Defaults[.demiffyAllowViewing] {
+                problem = "Viewing is switched off in the notch's Demiffy settings"
+            } else if isLocked {
+                problem = "The Mac is locked"
+            } else {
+                do {
+                    let window = try await WindowCapture.findWindow(bundleID: bundleID)
+                    if let pid = window.owningApplication?.processID { viewedWindow = (window.frame, pid) }
+                    viewTitle = window.title
+                    if let stream = viewStream {
+                        await stream.follow(window)
+                    } else {
+                        let stream = WindowStream { jpeg in
+                            Task { @MainActor in MacReporter.shared.deliverFrame(jpeg, viewID: viewID) }
+                        }
+                        try await stream.start(window)
+                        guard currentViewID == viewID else { return await stream.stop() }
+                        viewStream = stream
+                    }
+                } catch {
+                    problem = error.localizedDescription
+                }
+            }
+            if problem != nil, let stream = viewStream {
+                viewStream = nil
+                await stream.stop()
+            }
+            viewProblem = problem
+            sendViewMeta()
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
+    private func deliverFrame(_ jpeg: Data, viewID: String) {
+        guard viewID == currentViewID, !isLocked else { return }
+        pendingFrame = jpeg
+        pumpFrames()
+    }
+
+    /// One frame on the wire at a time; whatever arrived meanwhile replaces the waiting one.
+    private func pumpFrames() {
+        guard !sendingFrame, let frame = pendingFrame, let socket = viewSocket else { return }
+        pendingFrame = nil
+        sendingFrame = true
+        Task { [weak self] in
+            try? await socket.send(.data(frame))
+            self?.sendingFrame = false
+            self?.pumpFrames()
+        }
+    }
+
+    /// Title and problems for the page, sent only when they change.
+    private func sendViewMeta() {
+        var meta: [String: String] = [:]
+        meta["title"] = viewTitle
+        meta["error"] = viewProblem
+        meta["inputError"] = inputProblem.flatMap { Date().timeIntervalSince($0.at) < 8 ? $0.message : nil }
+        guard meta != sentMeta, let socket = viewSocket,
+              let json = try? JSONSerialization.data(withJSONObject: meta) else { return }
+        sentMeta = meta
+        socket.send(.string(String(decoding: json, as: UTF8.self))) { _ in }
     }
 
     /// Clicks, scrolls and keys from the website, only into the window being
@@ -417,8 +466,8 @@ final class MacReporter {
         } else {
             problem = "Wait for the first picture"
         }
-        lastInputAt = Date()
         inputProblem = problem.map { ($0, Date()) }
+        sendViewMeta()
     }
 
     // MARK: - Clipboard
@@ -524,10 +573,6 @@ final class MacReporter {
         case "view":
             guard let viewID = command["viewId"] as? String, let bundleID = command["bundleId"] as? String else { return }
             startViewing(viewID: viewID, bundleID: bundleID)
-            return
-        case "viewInput":
-            guard let viewID = command["viewId"] as? String, let events = command["events"] as? [[String: Any]] else { return }
-            Task { await self.applyInput(viewID: viewID, events: events) }
             return
         case "getClipboard":
             guard let requestID = command["requestId"] as? String else { return }

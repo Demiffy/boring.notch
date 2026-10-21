@@ -155,21 +155,16 @@ final class DemiffyClient: ObservableObject {
         return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
-    /// One frame of a live window view (or why there isn't one); the reply says whether anyone still watches.
-    func postFrame(viewID: String, jpeg: Data?, title: String?, error: String?, inputError: String? = nil, unchanged: Bool = false, frameNumber: Int) async throws -> Bool {
-        var request = try request("notch/view-frame", method: "POST")
-        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
-        request.setValue(viewID, forHTTPHeaderField: "X-View-Id")
-        let encode = { (text: String) in text.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "" }
-        if let title { request.setValue(encode(title), forHTTPHeaderField: "X-Window-Title") }
-        if let error { request.setValue(encode(error), forHTTPHeaderField: "X-View-Error") }
-        if let inputError { request.setValue(encode(inputError), forHTTPHeaderField: "X-Input-Error") }
-        if unchanged { request.setValue("1", forHTTPHeaderField: "X-Unchanged") }
-        request.setValue(String(frameNumber), forHTTPHeaderField: "X-Frame-Number")
-        request.httpBody = jpeg ?? Data()
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try Self.check(data, response)
-        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["continue"] as? Bool ?? false
+    /// The Mac's end of a live window view: frames go out, clicks and keys come in.
+    func viewSocket(viewID: String) throws -> URLSessionWebSocketTask {
+        var request = try request("notch/view-ws")
+        guard var components = request.url.flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) }) else {
+            throw DemiffyError("Bad server address")
+        }
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        components.queryItems = [URLQueryItem(name: "viewId", value: viewID)]
+        request.url = components.url
+        return URLSession.shared.webSocketTask(with: request)
     }
 
     /// Long-poll: the server answers as soon as a command is queued, or with none after ~25 s.
