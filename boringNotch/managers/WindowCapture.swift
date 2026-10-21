@@ -22,8 +22,9 @@ enum WindowCapture {
         let errorDescription: String?
     }
 
-    /// The app's largest normal window, scaled to at most 1440 px wide, as a JPEG.
-    nonisolated static func capture(bundleID: String) async throws -> Frame {
+    /// The app's largest normal window. Listing every window is the expensive
+    /// part, so callers reuse the result for a few frames.
+    nonisolated static func findWindow(bundleID: String) async throws -> SCWindow {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         let windows = content.windows.filter {
             $0.owningApplication?.bundleIdentifier == bundleID && $0.windowLayer == 0 && $0.frame.width > 120 && $0.frame.height > 80
@@ -32,8 +33,13 @@ enum WindowCapture {
         guard let window = windows.max(by: { score($0) < score($1) }) else {
             throw Failure(errorDescription: "No open window")
         }
+        return window
+    }
+
+    /// One picture of the window, at most 1600 px wide (Retina sharp for small windows), as a JPEG.
+    nonisolated static func capture(_ window: SCWindow) async throws -> Frame {
         let configuration = SCStreamConfiguration()
-        let scale = min(1, 1440 / window.frame.width) * 2
+        let scale = min(2, 1600 / window.frame.width)
         configuration.width = Int(window.frame.width * scale)
         configuration.height = Int(window.frame.height * scale)
         configuration.showsCursor = false

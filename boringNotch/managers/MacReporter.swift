@@ -11,6 +11,7 @@
 import AppKit
 import Combine
 import Defaults
+import ScreenCaptureKit
 
 @MainActor
 final class MacReporter {
@@ -341,6 +342,7 @@ final class MacReporter {
         client.viewing = Self.appName(bundleID) ?? bundleID
         viewTask = Task { [weak self] in
             let started = Date()
+            var window: (found: SCWindow, at: Date)?
             while let self, !Task.isCancelled, Date().timeIntervalSince(started) < 600 {
                 var frame: WindowCapture.Frame?
                 var problem: String?
@@ -349,7 +351,16 @@ final class MacReporter {
                 } else if self.isLocked {
                     problem = "The Mac is locked"
                 } else {
-                    do { frame = try await WindowCapture.capture(bundleID: bundleID) } catch { problem = error.localizedDescription }
+                    do {
+                        // Look the window up again every few seconds (it may move or close).
+                        if window == nil || Date().timeIntervalSince(window!.at) > 3 {
+                            window = (try await WindowCapture.findWindow(bundleID: bundleID), Date())
+                        }
+                        frame = try await WindowCapture.capture(window!.found)
+                    } catch {
+                        window = nil
+                        problem = error.localizedDescription
+                    }
                 }
                 if let frame, let pid = frame.pid { self.viewedWindow = (frame.windowFrame, pid) }
                 let inputError = self.inputProblem.flatMap { Date().timeIntervalSince($0.at) < 8 ? $0.message : nil }
