@@ -7,6 +7,7 @@
 
 import AppKit
 import ApplicationServices
+import CoreWLAN
 import IOKit
 
 class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
@@ -240,6 +241,60 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         guard (values?.fileSize ?? 0) <= Self.maxUploadBytes else { return reply(nil, "Over 95 MB — too big to send") }
         guard let handle = try? FileHandle(forReadingFrom: url) else { return reply(nil, "Couldn't open the file") }
         reply(handle, nil)
+    }
+
+    @objc func systemExtras(with reply: @escaping ([String: Any]) -> Void) {
+        DispatchQueue.global(qos: .utility).async {
+            var extras: [String: Any] = ["processes": Self.topProcesses()]
+            if let battery = Self.batteryDetails() { extras["battery"] = battery }
+            if let wifi = CWWiFiClient.shared().interface(), wifi.powerOn() {
+                var info: [String: Any] = ["rssi": wifi.rssiValue(), "noise": wifi.noiseMeasurement(), "txRate": wifi.transmitRate()]
+                // Nil unless the helper has Location access; shown when present.
+                if let ssid = wifi.ssid() { info["ssid"] = ssid }
+                extras["wifi"] = info
+            }
+            reply(extras)
+        }
+    }
+
+    /// The five busiest processes by CPU, as Activity Monitor would list them.
+    private static func topProcesses() -> [[String: Any]] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-Aceo", "pcpu=,rss=,comm=", "-r"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return [] }
+        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        return output.split(separator: "\n").prefix(5).compactMap { line in
+            let parts = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+            guard parts.count == 3, let cpu = Double(parts[0]), let rssKB = Double(parts[1]) else { return nil }
+            return ["name": String(parts[2]), "cpu": cpu, "memoryBytes": rssKB * 1024]
+        }
+    }
+
+    /// Health (capacity now vs. new), cycles, power draw and time left, from the battery's own registry entry.
+    private static func batteryDetails() -> [String: Any]? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        var unmanaged: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(service, &unmanaged, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let props = unmanaged?.takeRetainedValue() as? [String: Any] else { return nil }
+        var details: [String: Any] = [:]
+        if let cycles = props["CycleCount"] as? Int { details["cycles"] = cycles }
+        let data = props["BatteryData"] as? [String: Any]
+        if let nominal = data?["NominalChargeCapacity"] as? Double, let design = data?["DesignCapacity"] as? Double, design > 0 {
+            details["healthPercent"] = min(100, nominal / design * 100)
+        }
+        // Amperage is signed but stored unsigned; negative means discharging.
+        if let volts = props["Voltage"] as? Double, let raw = props["InstantAmperage"] as? UInt64 {
+            details["watts"] = abs(Double(Int64(bitPattern: raw))) / 1000 * volts / 1000
+        }
+        if let minutes = props["TimeRemaining"] as? Int, minutes > 0, minutes < 65535 { details["minutesLeft"] = minutes }
+        return details
     }
 
     private static func mdfind(_ arguments: [String]) -> [String] {

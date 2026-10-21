@@ -4,8 +4,8 @@
 //
 //  Reports this Mac to demiffy.com (/mac) and runs the safe commands the site
 //  sends back: a message in the notch, play/pause, a find-my-Mac sound, lock.
-//  Reports go out every minute and shortly after anything worth showing
-//  changes; commands arrive over one long-poll, so they land in about a second.
+//  Reports go out every minute, every few seconds while the page is open, and
+//  shortly after anything worth showing changes; commands arrive over one long-poll, so they land in about a second.
 //
 
 import AppKit
@@ -25,6 +25,10 @@ final class MacReporter {
 
     private var isLocked = false
     private var lastCPUTicks: (used: UInt64, total: UInt64)?
+    private var lastNetwork: (at: Date, counters: [String: (rx: UInt32, tx: UInt32)])?
+    /// Someone has the Mac page open; the server says so in its reply.
+    private var live = false
+    private var uploadedIcons = Set<String>()
 
     private init() {}
 
@@ -33,7 +37,7 @@ final class MacReporter {
         reportTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.report()
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(self?.live == true ? 5 : 60))
             }
         }
         pollTask = Task { [weak self] in await self?.pollLoop() }
@@ -106,13 +110,15 @@ final class MacReporter {
     private func report(sleeping: Bool = false) async {
         guard client.canCallServer, Defaults[.demiffyReportMac] else { return }
         do {
-            try await client.postJSON("notch/report", body: snapshot(sleeping: sleeping))
+            let reply = try await client.postJSON("notch/report", body: await snapshot(sleeping: sleeping))
+            live = reply["live"] as? Bool ?? false
+            if let missing = reply["needIcons"] as? [String] { await uploadIcons(missing) }
         } catch {
             client.noteRejection(error)
         }
     }
 
-    private func snapshot(sleeping: Bool) -> [String: Any] {
+    private func snapshot(sleeping: Bool) async -> [String: Any] {
         let battery = BatteryStatusViewModel.shared
         let disk = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey])
         let os = ProcessInfo.processInfo.operatingSystemVersion
@@ -131,8 +137,20 @@ final class MacReporter {
         if let free = disk?.volumeAvailableCapacityForImportantUsage { vitals["diskFreeBytes"] = Double(free) }
         if let total = disk?.volumeTotalCapacity { vitals["diskTotalBytes"] = Double(total) }
         if let model = Self.hardwareModel() { vitals["model"] = model }
+        vitals["thermal"] = ["nominal", "fair", "serious", "critical"][ProcessInfo.processInfo.thermalState.rawValue]
 
         var body: [String: Any] = ["state": sleeping ? "sleeping" : "awake", "vitals": vitals]
+        if !sleeping {
+            let extras = await XPCHelperClient.shared.systemExtras()
+            var network: [String: Any] = extras["wifi"] as? [String: Any] ?? [:]
+            if let rates = networkRates() {
+                network["rxBps"] = rates.rx
+                network["txBps"] = rates.tx
+            }
+            body["network"] = network
+            if let details = extras["battery"] { body["battery"] = details }
+            if Defaults[.demiffyShareActivity], let processes = extras["processes"] { body["processes"] = processes }
+        }
 
         if Defaults[.demiffyShareNowPlaying] {
             let music = MusicManager.shared
@@ -149,6 +167,9 @@ final class MacReporter {
                 "frontApp": NSWorkspace.shared.frontmostApplication?.localizedName ?? "",
                 "locked": isLocked,
             ] as [String: Any]
+            body["apps"] = Self.dockApps().map { app in
+                ["name": app.localizedName ?? "", "bundleId": app.bundleIdentifier ?? "", "active": app.isActive] as [String: Any]
+            }
         }
         return body
     }
@@ -185,6 +206,69 @@ final class MacReporter {
         let pages = appPages + Int(stats.wire_count) + Int(stats.compressor_page_count)
         let used = Double(pages) * Double(getpagesize())
         return used / Double(ProcessInfo.processInfo.physicalMemory) * 100
+    }
+
+    /// Bytes per second in and out over the Wi-Fi/Ethernet interfaces since
+    /// the previous report. The counters are 32-bit, so differences wrap.
+    private func networkRates() -> (rx: Double, tx: Double)? {
+        var counters: [String: (rx: UInt32, tx: UInt32)] = [:]
+        var list: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&list) == 0 else { return nil }
+        defer { freeifaddrs(list) }
+        var cursor = list
+        while let entry = cursor?.pointee {
+            cursor = entry.ifa_next
+            let name = String(cString: entry.ifa_name)
+            guard name.hasPrefix("en"), entry.ifa_addr?.pointee.sa_family == UInt8(AF_LINK),
+                  let data = entry.ifa_data?.assumingMemoryBound(to: if_data.self).pointee else { continue }
+            counters[name] = (data.ifi_ibytes, data.ifi_obytes)
+        }
+        let now = Date()
+        defer { lastNetwork = (now, counters) }
+        guard let last = lastNetwork else { return nil }
+        let seconds = now.timeIntervalSince(last.at)
+        guard seconds > 0.5 else { return nil }
+        var rx: UInt64 = 0, tx: UInt64 = 0
+        for (name, value) in counters {
+            guard let old = last.counters[name] else { continue }
+            rx += UInt64(value.rx &- old.rx)
+            tx += UInt64(value.tx &- old.tx)
+        }
+        return (Double(rx) / seconds, Double(tx) / seconds)
+    }
+
+    /// Apps that would show in the Dock, Finder first like the real one.
+    private static func dockApps() -> [NSRunningApplication] {
+        let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil }
+        return Array((apps.filter { $0.bundleIdentifier == "com.apple.finder" } + apps.filter { $0.bundleIdentifier != "com.apple.finder" }).prefix(24))
+    }
+
+    /// Sends the icons the site doesn't have yet, a few at a time, as 64 px PNGs.
+    private func uploadIcons(_ bundleIDs: [String]) async {
+        let wanted = bundleIDs.filter { !uploadedIcons.contains($0) }
+        let apps = Self.dockApps()
+        for batch in stride(from: 0, to: wanted.count, by: 5).map({ Array(wanted[$0..<min($0 + 5, wanted.count)]) }) {
+            var icons: [[String: String]] = []
+            for bundleID in batch {
+                uploadedIcons.insert(bundleID)
+                guard let icon = apps.first(where: { $0.bundleIdentifier == bundleID })?.icon,
+                      let png = Self.png(icon, side: 64) else { continue }
+                icons.append(["bundleId": bundleID, "png": png.base64EncodedString()])
+            }
+            guard !icons.isEmpty else { continue }
+            try? await client.postJSON("notch/app-icons", body: ["icons": icons])
+        }
+    }
+
+    private static func png(_ image: NSImage, side: Int) -> Data? {
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8,
+                                            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                            bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+        image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
+        NSGraphicsContext.restoreGraphicsState()
+        return bitmap.representation(using: .png, properties: [:])
     }
 
     private static func hardwareModel() -> String? {

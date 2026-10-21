@@ -64,6 +64,9 @@ final class BNLunarBrightnessEvent: NSObject, NSSecureCoding {
     func quitApplication(pid: Int32)
     func searchFiles(query: String, with reply: @escaping ([[String: Any]]) -> Void)
     func openFileForUpload(path: String, with reply: @escaping (FileHandle?, String?) -> Void)
+    /// Things the sandbox can't see, for the Mac page: busiest processes,
+    /// battery health and power draw, Wi-Fi signal.
+    func systemExtras(with reply: @escaping ([String: Any]) -> Void)
     func openNotification(token: String, with reply: @escaping (Bool) -> Void)
     func setKeepNotificationBanners(_ keep: Bool)
     func notificationIconRect(token: String, with reply: @escaping (String) -> Void)

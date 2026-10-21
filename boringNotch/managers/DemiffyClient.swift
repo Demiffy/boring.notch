@@ -143,12 +143,14 @@ final class DemiffyClient: ObservableObject {
 
     // MARK: - Mac reporting
 
-    func postJSON(_ path: String, body: [String: Any]) async throws {
+    @discardableResult
+    func postJSON(_ path: String, body: [String: Any]) async throws -> [String: Any] {
         var request = try request(path, method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.check(data, response)
+        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
     /// Long-poll: the server answers as soon as a command is queued, or with none after ~25 s.

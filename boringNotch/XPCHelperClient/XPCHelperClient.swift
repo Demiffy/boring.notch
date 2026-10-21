@@ -385,6 +385,18 @@ final class XPCHelperClient: NSObject, ObservableObject {
         }
     }
 
+    func systemExtras() async -> [String: Any] {
+        do {
+            let service = ensureRemoteService()
+            return try await service.withContinuation { service, continuation in
+                service.systemExtras { continuation.resume(returning: $0) }
+            }
+        } catch {
+            lastError = .transport(underlying: error)
+            return [:]
+        }
+    }
+
     /// The helper opens the file (the sandbox can't) and passes the handle.
     func openFileForUpload(path: String) async throws -> FileHandle {
         let service = ensureRemoteService()
