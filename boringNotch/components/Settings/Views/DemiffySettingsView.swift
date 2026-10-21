@@ -90,6 +90,10 @@ struct DemiffySettingsView: View {
                     Text("Include the app in front and lock state")
                 }
                 .disabled(!reportMac)
+                Defaults.Toggle(key: .demiffyAllowViewing) {
+                    Text("Let the website view an app's window")
+                }
+                .disabled(!reportMac)
             } header: {
                 Text("This Mac")
             } footer: {

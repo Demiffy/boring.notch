@@ -518,6 +518,8 @@ extension Defaults.Keys {
     static let idleFaceIsCat = Key<Bool>("idleFaceIsCat", default: true)
     static let demiffyShareNowPlaying = Key<Bool>("demiffyShareNowPlaying", default: true)
     static let demiffyShareActivity = Key<Bool>("demiffyShareActivity", default: true)
+    /// demiffy.com/mac may show one app's window, live, while the notch shows an eye.
+    static let demiffyAllowViewing = Key<Bool>("demiffyAllowViewing", default: true)
     static let notificationsFromAllApps = Key<Bool>("notificationsFromAllApps", default: false)
     /// Leave the macOS banner in place; the notch only adds a small indicator.
     static let notificationKeepBanner = Key<Bool>("notificationKeepBanner", default: true)

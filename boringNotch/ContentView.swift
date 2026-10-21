@@ -109,7 +109,7 @@ struct ContentView: View {
             items.append(.notification(notification))
         }
 
-        if demiffy.uploadState != .idle {
+        if demiffy.uploadState != .idle || demiffy.viewing != nil {
             items.append(.demiffy)
         }
 
@@ -352,6 +352,11 @@ struct ContentView: View {
                     // Claude finishing or asking for input is worth surfacing
                     // even if the user swiped to music.
                     // A drop starts an upload: show its progress in front.
+                    // Being watched from the website should never go unnoticed.
+                    .onChange(of: demiffy.viewing) { _, app in
+                        guard app != nil, let index = liveActivities.firstIndex(of: .demiffy) else { return }
+                        activityIndex = index
+                    }
                     .onChange(of: demiffy.uploadState == .idle) { _, idle in
                         guard !idle, let index = liveActivities.firstIndex(of: .demiffy) else { return }
                         activityIndex = index

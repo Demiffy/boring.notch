@@ -29,6 +29,8 @@ final class DemiffyClient: ObservableObject {
 
     @Published private(set) var uploadState: UploadState = .idle
     @Published private(set) var noteState: NoteState = .idle
+    /// The app whose window demiffy.com is watching right now; the notch shows an eye.
+    @Published var viewing: String?
     @Published private(set) var hasToken: Bool
     /// Set when the server rejects the saved token, so background work stops
     /// calling it until a new token is saved.
@@ -151,6 +153,20 @@ final class DemiffyClient: ObservableObject {
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.check(data, response)
         return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    }
+
+    /// One frame of a live window view (or why there isn't one); the reply says whether anyone still watches.
+    func postFrame(viewID: String, jpeg: Data?, title: String?, error: String?) async throws -> Bool {
+        var request = try request("notch/view-frame", method: "POST")
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        request.setValue(viewID, forHTTPHeaderField: "X-View-Id")
+        let encode = { (text: String) in text.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "" }
+        if let title { request.setValue(encode(title), forHTTPHeaderField: "X-Window-Title") }
+        if let error { request.setValue(encode(error), forHTTPHeaderField: "X-View-Error") }
+        request.httpBody = jpeg ?? Data()
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Self.check(data, response)
+        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["continue"] as? Bool ?? false
     }
 
     /// Long-poll: the server answers as soon as a command is queued, or with none after ~25 s.

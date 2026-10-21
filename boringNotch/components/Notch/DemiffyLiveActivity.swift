@@ -4,6 +4,7 @@
 //
 //  Closed-notch view of a Demiffy Cloud upload: the logo on the left, a
 //  progress ring on the right that turns into a check once the link is copied.
+//  While demiffy.com is watching an app's window, a red eye instead.
 //
 
 import SwiftUI
@@ -58,7 +59,12 @@ struct DemiffyLiveActivity: View {
                 .foregroundStyle(.red)
                 .transition(.scale.combined(with: .opacity))
         case .idle:
-            EmptyView()
+            if client.viewing != nil {
+                Image(systemName: "eye.fill")
+                    .font(.system(size: itemSize * 0.5, weight: .bold))
+                    .foregroundStyle(.red)
+                    .transition(.scale.combined(with: .opacity))
+            }
         }
     }
 
@@ -67,7 +73,7 @@ struct DemiffyLiveActivity: View {
         case .uploading(let name, _, _, let progress): "Uploading \(name) to Demiffy, \(Int(progress * 100)) percent"
         case .done: "Uploaded to Demiffy, link copied"
         case .failed(let message): "Demiffy upload failed: \(message)"
-        case .idle: "Demiffy"
+        case .idle: client.viewing.map { "demiffy.com is viewing \($0)" } ?? "Demiffy"
         }
     }
 }

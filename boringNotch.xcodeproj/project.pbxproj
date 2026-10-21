@@ -122,6 +122,7 @@
 		AA01CLA12E7A0001 /* ClaudeLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CLA22E7A0001 /* ClaudeLiveActivity.swift */; };
 		AA01SNM12E7A0001 /* SystemNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01SNM22E7A0001 /* SystemNotificationManager.swift */; };
 		AA02BDBD12E7A0001 /* MacReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA02BDBD22E7A0001 /* MacReporter.swift */; };
+		AA02C0DE12E7A0001 /* WindowCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA02C0DE22E7A0001 /* WindowCapture.swift */; };
 		AA027B3612E7A0001 /* DemiffyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA027B3622E7A0001 /* DemiffyClient.swift */; };
 		AA01CCS12E7A0001 /* ClaudeCodeStatusManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CCS22E7A0001 /* ClaudeCodeStatusManager.swift */; };
 		AA02CAM12E7A0001 /* ContactAvatarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA02CAM22E7A0001 /* ContactAvatarManager.swift */; };
@@ -298,6 +299,7 @@
 		AA01CLA22E7A0001 /* ClaudeLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeLiveActivity.swift; sourceTree = "<group>"; };
 		AA01SNM22E7A0001 /* SystemNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemNotificationManager.swift; sourceTree = "<group>"; };
 		AA02BDBD22E7A0001 /* MacReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacReporter.swift; sourceTree = "<group>"; };
+		AA02C0DE22E7A0001 /* WindowCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowCapture.swift; sourceTree = "<group>"; };
 		AA027B3622E7A0001 /* DemiffyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemiffyClient.swift; sourceTree = "<group>"; };
 		AA01CCS22E7A0001 /* ClaudeCodeStatusManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeStatusManager.swift; sourceTree = "<group>"; };
 		AA02CAM22E7A0001 /* ContactAvatarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactAvatarManager.swift; sourceTree = "<group>"; };
@@ -597,6 +599,7 @@
 				EAB1C3E8B149445A9E57C6AF /* NotchWindowManager.swift */,
 				AA01SNM22E7A0001 /* SystemNotificationManager.swift */,
 				AA02BDBD22E7A0001 /* MacReporter.swift */,
+				AA02C0DE22E7A0001 /* WindowCapture.swift */,
 				AA027B3622E7A0001 /* DemiffyClient.swift */,
 				AA01CCS22E7A0001 /* ClaudeCodeStatusManager.swift */,
 				AA02CAM22E7A0001 /* ContactAvatarManager.swift */,
@@ -1043,6 +1046,7 @@
 				149E0B9A2C737D40006418B1 /* WebcamView.swift in Sources */,
 				AA01SNM12E7A0001 /* SystemNotificationManager.swift in Sources */,
 				AA02BDBD12E7A0001 /* MacReporter.swift in Sources */,
+				AA02C0DE12E7A0001 /* WindowCapture.swift in Sources */,
 				AA027B3612E7A0001 /* DemiffyClient.swift in Sources */,
 				AA01CCS12E7A0001 /* ClaudeCodeStatusManager.swift in Sources */,
 				AA01NLA12E7A0001 /* NotificationLiveActivity.swift in Sources */,

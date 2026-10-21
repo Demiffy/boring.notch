@@ -29,6 +29,8 @@ final class MacReporter {
     /// Someone has the Mac page open; the server says so in its reply.
     private var live = false
     private var uploadedIcons = Set<String>()
+    private var viewTask: Task<Void, Never>?
+    private var currentViewID: String?
 
     private init() {}
 
@@ -137,6 +139,11 @@ final class MacReporter {
         if let free = disk?.volumeAvailableCapacityForImportantUsage { vitals["diskFreeBytes"] = Double(free) }
         if let total = disk?.volumeTotalCapacity { vitals["diskTotalBytes"] = Double(total) }
         if let model = Self.hardwareModel() { vitals["model"] = model }
+        let volume = VolumeManager.shared
+        vitals["volume"] = Double(volume.rawVolume) * 100
+        vitals["muted"] = volume.isMuted
+        BrightnessManager.shared.refresh()
+        vitals["brightness"] = Double(BrightnessManager.shared.rawBrightness) * 100
         vitals["thermal"] = ["nominal", "fair", "serious", "critical"][ProcessInfo.processInfo.thermalState.rawValue]
 
         var body: [String: Any] = ["state": sleeping ? "sleeping" : "awake", "vitals": vitals]
@@ -318,6 +325,70 @@ final class MacReporter {
         }
     }
 
+    // MARK: - Live window view
+
+    /// Sends a picture of one app's window about once a second for as long as
+    /// the page keeps asking (the server says when nobody watches), ten
+    /// minutes at most. Never while locked; the notch shows an eye meanwhile.
+    private func startViewing(viewID: String, bundleID: String) {
+        viewTask?.cancel()
+        currentViewID = viewID
+        client.viewing = Self.appName(bundleID) ?? bundleID
+        viewTask = Task { [weak self] in
+            let started = Date()
+            while let self, !Task.isCancelled, Date().timeIntervalSince(started) < 600 {
+                var frame: WindowCapture.Frame?
+                var problem: String?
+                if !Defaults[.demiffyAllowViewing] {
+                    problem = "Viewing is switched off in the notch's Demiffy settings"
+                } else if self.isLocked {
+                    problem = "The Mac is locked"
+                } else {
+                    do { frame = try await WindowCapture.capture(bundleID: bundleID) } catch { problem = error.localizedDescription }
+                }
+                let keepGoing = (try? await self.client.postFrame(viewID: viewID, jpeg: frame?.jpeg, title: frame?.title, error: problem)) ?? false
+                guard keepGoing else { break }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if self?.currentViewID == viewID {
+                self?.client.viewing = nil
+                self?.currentViewID = nil
+            }
+        }
+    }
+
+    // MARK: - Clipboard
+
+    private func answerClipboard(requestID: String) async {
+        let pasteboard = NSPasteboard.general
+        var body: [String: Any] = ["requestId": requestID]
+        // Password managers mark what they copy; that never leaves the Mac.
+        if pasteboard.types?.contains(NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")) == true {
+            body["error"] = "Hidden — a password manager copied it"
+        } else if let text = pasteboard.string(forType: .string) {
+            body["text"] = String(text.prefix(10_000))
+        } else {
+            body["error"] = pasteboard.types?.isEmpty == false ? "The clipboard holds something other than text" : "The clipboard is empty"
+        }
+        try? await client.postJSON("notch/clipboard", body: body)
+    }
+
+    private func setClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        SystemNotificationManager.shared.present(SystemNotification(
+            id: UUID().uuidString,
+            appName: "Demiffy",
+            bundleID: nil,
+            title: "Copied from demiffy.com",
+            subtitle: nil,
+            body: String(text.prefix(120)),
+            receivedAt: Date(),
+            iconAsset: "DemiffyLogo",
+            url: nil
+        ))
+    }
+
     /// Shows the lock screen; the session stays logged in. Called from the app
     /// itself because the login session agent isn't reachable from the XPC
     /// helper (it fails there with "Unable to get the SessionAgent endpoint").
@@ -386,6 +457,26 @@ final class MacReporter {
         case "fetch":
             guard let fetchId = command["fetchId"] as? String, let path = command["path"] as? String else { return }
             Task { await self.answerFetch(fetchId: fetchId, path: path) }
+        case "view":
+            guard let viewID = command["viewId"] as? String, let bundleID = command["bundleId"] as? String else { return }
+            startViewing(viewID: viewID, bundleID: bundleID)
+            return
+        case "getClipboard":
+            guard let requestID = command["requestId"] as? String else { return }
+            Task { await self.answerClipboard(requestID: requestID) }
+            return
+        case "setClipboard":
+            guard let text = command["text"] as? String else { return }
+            setClipboard(text)
+        case "setVolume":
+            guard let value = command["value"] as? Double else { return }
+            VolumeManager.shared.setAbsolute(Float32(max(0, min(1, value))))
+        case "setMute":
+            guard let muted = command["muted"] as? Bool, muted != VolumeManager.shared.isMuted else { break }
+            VolumeManager.shared.toggleMuteAction()
+        case "setBrightness":
+            guard let value = command["value"] as? Double else { return }
+            BrightnessManager.shared.setAbsolute(value: Float(max(0, min(1, value))))
         default:
             break
         }
