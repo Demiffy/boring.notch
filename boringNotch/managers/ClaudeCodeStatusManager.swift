@@ -70,9 +70,12 @@ final class ClaudeCodeStatusManager: ObservableObject {
         listener.start(queue: .main)
         self.listener = listener
 
+        // Expiring sessions only matters while there are some; otherwise the
+        // loop barely wakes (battery).
         sweepTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
+                let idle = self?.sessions.isEmpty ?? true
+                try? await Task.sleep(for: .seconds(idle ? 30 : 2))
                 self?.sweep()
             }
         }
@@ -91,6 +94,10 @@ final class ClaudeCodeStatusManager: ObservableObject {
     private func accept(_ connection: NWConnection) {
         connection.start(queue: .main)
         receive(on: connection, buffer: Data())
+        // Hooks send everything at once; drop anything that stalls.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            if connection.state != .cancelled { connection.cancel() }
+        }
     }
 
     private func receive(on connection: NWConnection, buffer: Data) {

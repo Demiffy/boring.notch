@@ -370,21 +370,25 @@ final class XPCHelperClient: NSObject, ObservableObject {
     }
 
     func setKeepNotificationBanners(_ keep: Bool) {
-        Task {
-            try? await ensureRemoteService().withService { $0.setKeepNotificationBanners(keep) }
-        }
+        send { $0.setKeepNotificationBanners(keep) }
     }
 
     func quitApplication(pid: Int32) {
-        Task {
-            try? await ensureRemoteService().withService { $0.quitApplication(pid: pid) }
-        }
+        send { $0.quitApplication(pid: pid) }
     }
 
     func nudgeCursor(through point: CGPoint) {
+        send { $0.nudgeCursor(throughX: point.x, y: point.y) }
+    }
+
+    /// Fire-and-forget call to the helper; a failure is kept in `lastError`
+    /// like every other call rather than dropped.
+    private func send(_ call: @escaping (BoringNotchXPCHelperProtocol) -> Void) {
         Task {
-            try? await ensureRemoteService().withService { service in
-                service.nudgeCursor(throughX: point.x, y: point.y)
+            do {
+                try await ensureRemoteService().withService(call)
+            } catch {
+                lastError = .transport(underlying: error)
             }
         }
     }

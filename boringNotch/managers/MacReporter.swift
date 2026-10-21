@@ -104,8 +104,12 @@ final class MacReporter {
     // MARK: - Report
 
     private func report(sleeping: Bool = false) async {
-        guard client.isConfigured, Defaults[.demiffyReportMac] else { return }
-        try? await client.postJSON("notch/report", body: snapshot(sleeping: sleeping))
+        guard client.canCallServer, Defaults[.demiffyReportMac] else { return }
+        do {
+            try await client.postJSON("notch/report", body: snapshot(sleeping: sleeping))
+        } catch {
+            client.noteRejection(error)
+        }
     }
 
     private func snapshot(sleeping: Bool) -> [String: Any] {
@@ -215,7 +219,9 @@ final class MacReporter {
 
     private func pollLoop() async {
         while !Task.isCancelled {
-            guard client.isConfigured, Defaults[.demiffyReportMac] else {
+            // Not set up, switched off, or the token was rejected: idle until
+            // that changes instead of hammering the server.
+            guard client.canCallServer, Defaults[.demiffyReportMac] else {
                 try? await Task.sleep(for: .seconds(30))
                 continue
             }
@@ -224,6 +230,7 @@ final class MacReporter {
                     run(command)
                 }
             } catch {
+                if client.noteRejection(error) { continue }
                 // Offline, asleep, or the Pi restarting: try again shortly.
                 try? await Task.sleep(for: .seconds(10))
             }

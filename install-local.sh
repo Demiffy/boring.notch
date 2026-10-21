@@ -25,9 +25,15 @@ for xpc in "$APP"/Contents/XPCServices/*.xpc; do
 done
 codesign --force --sign "$IDENTITY" --preserve-metadata=entitlements "$APP"
 
+# Copy next to the installed app first, so a failed copy never leaves you
+# without one; then swap.
+STAGED="/Applications/.Boring Notch.installing.app"
+rm -rf "$STAGED"
+ditto "$APP" "$STAGED"
+
 osascript -e 'quit app id "theboringteam.boringnotch"' 2>/dev/null || true
 sleep 1
 rm -rf "/Applications/Boring Notch.app"
-ditto "$APP" "/Applications/Boring Notch.app"
+mv "$STAGED" "/Applications/Boring Notch.app"
 
 open "/Applications/Boring Notch.app"

@@ -123,6 +123,9 @@ struct DemiffySettingsView: View {
     @ViewBuilder
     private var connectionStatus: some View {
         switch connection {
+        case .unknown where client.tokenRejected:
+            Label("Token was rejected — remove it and paste a new one", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
         case .unknown:
             Label(client.hasToken ? "Not checked yet" : "Not connected", systemImage: "circle.dashed")
                 .foregroundStyle(.secondary)

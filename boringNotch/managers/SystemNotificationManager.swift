@@ -176,8 +176,12 @@ final class SystemNotificationManager: ObservableObject {
             receivedAt: Date()
         )
         guard isAllowed(notification) else { return }
-        if Defaults[.notificationShowAvatars], let rect = nonEmpty(payload["iconRect"]).map(NSRectFromString), !rect.isEmpty {
-            captureAvatar(in: rect, for: notification.id)
+        // Only a banner left on screen can be photographed: a parked one has
+        // moved away, and capturing its old spot would grab whatever window is
+        // there instead.
+        if Defaults[.notificationShowAvatars], Defaults[.notificationKeepBanner],
+           nonEmpty(payload["iconRect"]) != nil {
+            captureAvatar(for: notification.id)
         }
         guard activeNotification == nil else {
             guard isUserPresent else {
@@ -285,13 +289,14 @@ final class SystemNotificationManager: ObservableObject {
 
     /// Copies the banner's picture from the screen. Only works while the
     /// banner is visible, so it's used with "keep the macOS banner" on.
-    private func captureAvatar(in rect: CGRect, for id: String) {
+    private func captureAvatar(for id: String) {
         guard #available(macOS 15.2, *) else { return }
         guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else { return }
         Task { @MainActor [weak self] in
             // Let the banner finish sliding in, then measure where it ended up.
             try? await Task.sleep(for: .milliseconds(600))
-            let settled = await XPCHelperClient.shared.notificationIconRect(token: id) ?? rect
+            // Measured on the live banner; if it's gone there's nothing to take.
+            guard let settled = await XPCHelperClient.shared.notificationIconRect(token: id) else { return }
             guard let image = await Self.screenshot(of: settled),
                   let face = Self.cropAvatar(image) else { return }
             let side = settled.width * Self.avatarCropRadius * 2

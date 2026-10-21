@@ -208,14 +208,14 @@ final class NotchWindowManager {
                     )
                 }
 
+                guard let viewModel = contexts[uuid]?.viewModel else { continue }
+
                 if contexts[uuid]?.window == nil {
-                    let viewModel = contexts[uuid]!.viewModel
                     let window = createBoringNotchWindow(for: screen, with: viewModel)
                     contexts[uuid]?.window = window
                 }
 
                 if let window = contexts[uuid]?.window {
-                    let viewModel = contexts[uuid]!.viewModel
                     positionWindow(window, on: screen, changeAlpha: changeAlpha)
 
                     if viewModel.notchState == .closed {

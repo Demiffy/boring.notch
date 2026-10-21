@@ -30,6 +30,9 @@ final class DemiffyClient: ObservableObject {
     @Published private(set) var uploadState: UploadState = .idle
     @Published private(set) var noteState: NoteState = .idle
     @Published private(set) var hasToken: Bool
+    /// Set when the server rejects the saved token, so background work stops
+    /// calling it until a new token is saved.
+    @Published private(set) var tokenRejected = false
     /// The draft survives the notch closing; cleared once it's saved.
     @Published var noteDraft = ""
 
@@ -46,6 +49,17 @@ final class DemiffyClient: ObservableObject {
     }
 
     var isConfigured: Bool { hasToken && serverURL != nil }
+
+    /// True when background work (Mac reporting) should call the server.
+    var canCallServer: Bool { isConfigured && !tokenRejected }
+
+    /// Remembers a rejected token; returns true when `error` was that.
+    @discardableResult
+    func noteRejection(_ error: Error) -> Bool {
+        guard (error as? DemiffyError)?.unauthorized == true else { return false }
+        tokenRejected = true
+        return true
+    }
 
     /// The website for the configured API: api.demiffy.com -> demiffy.com.
     func siteURL(path: String) -> URL? {
@@ -76,6 +90,7 @@ final class DemiffyClient: ObservableObject {
             SecItemAdd(item as CFDictionary, nil)
         }
         hasToken = Self.readToken() != nil
+        tokenRejected = false
     }
 
     private static func readToken() -> String? {
@@ -113,10 +128,17 @@ final class DemiffyClient: ObservableObject {
 
     /// Returns the display name the token belongs to.
     func testConnection() async throws -> String {
-        let (data, response) = try await URLSession.shared.data(for: request("notch/me"))
-        try Self.check(data, response)
-        struct Me: Decodable { let displayName: String }
-        return try JSONDecoder().decode(Me.self, from: data).displayName
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request("notch/me"))
+            try Self.check(data, response)
+            struct Me: Decodable { let displayName: String }
+            let name = try JSONDecoder().decode(Me.self, from: data).displayName
+            tokenRejected = false
+            return name
+        } catch {
+            noteRejection(error)
+            throw error
+        }
     }
 
     // MARK: - Mac reporting
@@ -233,7 +255,10 @@ final class DemiffyClient: ObservableObject {
         let out = try FileHandle(forWritingTo: body)
         defer { try? out.close() }
 
-        let filename = file.lastPathComponent.replacingOccurrences(of: "\"", with: "'")
+        // Quotes or line breaks in a filename would break the form header.
+        let filename = file.lastPathComponent
+            .replacingOccurrences(of: "\"", with: "'")
+            .components(separatedBy: .newlines).joined(separator: " ")
         var head = "--\(boundary)\r\nContent-Disposition: form-data; name=\"expiresInHours\"\r\n\r\n\(expiryHours)\r\n"
         head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n"
         head += "Content-Type: application/octet-stream\r\n\r\n"
@@ -274,7 +299,7 @@ final class DemiffyClient: ObservableObject {
     private static func check(_ data: Data, _ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { throw DemiffyError("No response from the server") }
         guard !(200..<300).contains(http.statusCode) else { return }
-        if http.statusCode == 401 { throw DemiffyError("Token not accepted — make a new one in Settings") }
+        if http.statusCode == 401 { throw DemiffyError("Token not accepted — make a new one in Settings", unauthorized: true) }
         struct Body: Decodable { struct Err: Decodable { let message: String }; let error: Err }
         let message = (try? JSONDecoder().decode(Body.self, from: data))?.error.message
         throw DemiffyError(message ?? "Server answered \(http.statusCode)")
@@ -296,7 +321,12 @@ final class DemiffyClient: ObservableObject {
 
 struct DemiffyError: LocalizedError {
     let message: String
-    init(_ message: String) { self.message = message }
+    /// The server said the token is no good (revoked or never valid).
+    var unauthorized = false
+    init(_ message: String, unauthorized: Bool = false) {
+        self.message = message
+        self.unauthorized = unauthorized
+    }
     var errorDescription: String? { message }
 }
 
