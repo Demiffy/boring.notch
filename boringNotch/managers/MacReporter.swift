@@ -332,9 +332,11 @@ final class MacReporter {
 
     // MARK: - Live window view
 
-    /// Sends a picture of one app's window about once a second for as long as
-    /// the page keeps asking (the server says when nobody watches), ten
-    /// minutes at most. Never while locked; the notch shows an eye meanwhile.
+    /// Sends pictures of one app's window back to back (a few a second, more
+    /// right after a click or key) for as long as the page keeps asking — the
+    /// server says when nobody watches — ten minutes at most. A picture that
+    /// didn't change isn't uploaded again. Never while locked; the notch shows
+    /// an eye meanwhile.
     private func startViewing(viewID: String, bundleID: String) {
         viewTask?.cancel()
         currentViewID = viewID
@@ -343,6 +345,7 @@ final class MacReporter {
         viewTask = Task { [weak self] in
             let started = Date()
             var window: (found: SCWindow, at: Date)?
+            var lastJPEG: Data?
             while let self, !Task.isCancelled, Date().timeIntervalSince(started) < 600 {
                 var frame: WindowCapture.Frame?
                 var problem: String?
@@ -364,13 +367,16 @@ final class MacReporter {
                 }
                 if let frame, let pid = frame.pid { self.viewedWindow = (frame.windowFrame, pid) }
                 let inputError = self.inputProblem.flatMap { Date().timeIntervalSince($0.at) < 8 ? $0.message : nil }
+                let unchanged = frame != nil && frame?.jpeg == lastJPEG
+                if let frame { lastJPEG = frame.jpeg }
                 let keepGoing = (try? await self.client.postFrame(
-                    viewID: viewID, jpeg: frame?.jpeg, title: frame?.title, error: problem, inputError: inputError
+                    viewID: viewID, jpeg: unchanged ? nil : frame?.jpeg, title: frame?.title, error: problem,
+                    inputError: inputError, unchanged: unchanged
                 )) ?? false
                 guard keepGoing else { break }
-                // Quicker frames right after a click or key, so it feels live.
+                // Quicker still for a while after a click or key, so it feels live.
                 let interacting = Date().timeIntervalSince(self.lastInputAt) < 10
-                try? await Task.sleep(for: .milliseconds(interacting ? 300 : 1000))
+                try? await Task.sleep(for: .milliseconds(interacting ? 100 : 350))
             }
             if self?.currentViewID == viewID {
                 self?.client.viewing = nil

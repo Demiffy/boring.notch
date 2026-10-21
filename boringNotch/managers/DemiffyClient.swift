@@ -156,7 +156,7 @@ final class DemiffyClient: ObservableObject {
     }
 
     /// One frame of a live window view (or why there isn't one); the reply says whether anyone still watches.
-    func postFrame(viewID: String, jpeg: Data?, title: String?, error: String?, inputError: String? = nil) async throws -> Bool {
+    func postFrame(viewID: String, jpeg: Data?, title: String?, error: String?, inputError: String? = nil, unchanged: Bool = false) async throws -> Bool {
         var request = try request("notch/view-frame", method: "POST")
         request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
         request.setValue(viewID, forHTTPHeaderField: "X-View-Id")
@@ -164,6 +164,7 @@ final class DemiffyClient: ObservableObject {
         if let title { request.setValue(encode(title), forHTTPHeaderField: "X-Window-Title") }
         if let error { request.setValue(encode(error), forHTTPHeaderField: "X-View-Error") }
         if let inputError { request.setValue(encode(inputError), forHTTPHeaderField: "X-Input-Error") }
+        if unchanged { request.setValue("1", forHTTPHeaderField: "X-Unchanged") }
         request.httpBody = jpeg ?? Data()
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.check(data, response)
