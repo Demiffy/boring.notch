@@ -89,13 +89,13 @@ struct CompactHomeView: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     MarqueeText(
-                        musicManager.songTitle,
+                        musicManager.songTitle.isEmpty ? "Nothing playing" : musicManager.songTitle,
                         font: .system(size: 12, weight: .semibold),
                         color: .white,
                         frameWidth: textWidth
                     )
 
-                    Text(musicManager.artistName)
+                    Text(musicManager.songTitle.isEmpty ? musicManager.displayAppName : musicManager.artistName)
                         .font(.system(size: 10))
                         .foregroundStyle(
                             playerColorTinting
@@ -203,7 +203,7 @@ struct CompactHomeView: View {
             // a +10/+10 offset, sized for the 120pt art in the full layout —
             // on 50pt art it spills outside the corner.
             if showMediaSourceAppIcon && !musicManager.usingAppIconForArtwork {
-                appIcon(for: musicManager.bundleIdentifier ?? MediaAppBundleID.appleMusic)
+                appIcon(for: musicManager.displayBundleIdentifier)
                     .resizable().scaledToFit()
                     .frame(width: 18, height: 18)
                     .offset(x: 5, y: 5)

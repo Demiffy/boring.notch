@@ -123,6 +123,31 @@ final class MusicManager: ObservableObject {
     @Published var isTransitioning: Bool = false
     private var transitionWorkItem: DispatchWorkItem?
 
+    /// The app whose icon the player shows: the one actually playing, else
+    /// the source chosen in settings — never a blanket Apple Music fallback.
+    var displayBundleIdentifier: String {
+        if let bundleIdentifier { return bundleIdentifier }
+        switch preferredMediaController {
+        case .spotify: return MediaAppBundleID.spotify
+        case .youtubeMusic: return MediaAppBundleID.youTubeMusic
+        case .appleMusic: return MediaAppBundleID.appleMusic
+        case .nowPlaying: return Defaults[.lastSupportedNowPlayingBundleIdentifier] ?? MediaAppBundleID.appleMusic
+        }
+    }
+
+    /// The display name of that app ("Spotify"), for the empty player.
+    var displayAppName: String {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: displayBundleIdentifier)
+            .map { FileManager.default.displayName(atPath: $0.path).replacingOccurrences(of: ".app", with: "") }
+            ?? "Music"
+    }
+
+    /// Player apps answer "Unknown" / "Not Playing" when nothing is loaded;
+    /// those are not song titles.
+    private static func cleaned(_ value: String) -> String {
+        ["Unknown", "Not Playing"].contains(value) ? "" : value
+    }
+
     // MARK: - Initialization
     init() {
         Self.migrateMediaControllerPreferenceIfNeeded()
@@ -541,16 +566,20 @@ final class MusicManager: ObservableObject {
         let repeatModeChanged = state.repeatMode != self.repeatMode
         let volumeChanged = state.volume != self.volume
 
-        if state.title != self.songTitle {
-            self.songTitle = state.title
+        let title = Self.cleaned(state.title)
+        let artist = Self.cleaned(state.artist)
+        let album = Self.cleaned(state.album)
+
+        if title != self.songTitle {
+            self.songTitle = title
         }
 
-        if state.artist != self.artistName {
-            self.artistName = state.artist
+        if artist != self.artistName {
+            self.artistName = artist
         }
 
-        if state.album != self.album {
-            self.album = state.album
+        if album != self.album {
+            self.album = album
         }
 
         if timeChanged {

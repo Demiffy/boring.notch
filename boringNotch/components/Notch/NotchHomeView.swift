@@ -101,7 +101,7 @@ struct AlbumArtView: View {
     @ViewBuilder
     private var appIconOverlay: some View {
         if showMediaSourceAppIcon && vm.notchState == .open && !musicManager.usingAppIconForArtwork {
-            appIcon(for: musicManager.bundleIdentifier ?? MediaAppBundleID.appleMusic)
+            appIcon(for: musicManager.displayBundleIdentifier)
                 .resizable().scaledToFit()
                 .frame(width: 30, height: 30)
                 .offset(x: 10, y: 10)
@@ -143,9 +143,9 @@ struct MusicControlsView: View {
 
     private func songInfo(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            MarqueeText(musicManager.songTitle, font: .headline, color: .white, frameWidth: width)
+            MarqueeText(musicManager.songTitle.isEmpty ? "Nothing playing" : musicManager.songTitle, font: .headline, color: .white, frameWidth: width)
             MarqueeText(
-                musicManager.artistName,
+                musicManager.songTitle.isEmpty ? musicManager.displayAppName : musicManager.artistName,
                 font: .headline,
                 color: Defaults[.playerColorTinting]
                     ? Color(nsColor: musicManager.avgColor)
